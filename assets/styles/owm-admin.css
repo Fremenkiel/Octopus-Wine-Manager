@@ -1,0 +1,91 @@
+/* Container styling */
+.owm-settings-wrap {
+    max-width: 800px;
+    margin: 20px 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+/* Card-style sections */
+.owm-settings-wrap .form-table {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    margin-bottom: 24px;
+}
+
+/* Header typography */
+.owm-settings-wrap h1 {
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 24px;
+}
+
+.owm-settings-wrap h2 {
+    font-size: 1.1rem;
+    color: #475569;
+    margin: 32px 0 12px;
+}
+
+/* Form Layout fixes */
+.owm-settings-wrap th {
+    padding: 20px 10px 20px 0;
+    width: 200px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* Modern Input styling */
+.owm-settings-wrap input[type="text"],
+.owm-settings-wrap input[type="password"],
+.owm-settings-wrap select {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px 12px;
+    transition: all 0.2s ease;
+    box-shadow: none;
+}
+
+.owm-settings-wrap input:focus,
+.owm-settings-wrap select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    outline: none;
+}
+
+/* Primary Button (Save) */
+.owm-settings-wrap .button-primary {
+    background: #2563eb !important;
+    border: none !important;
+    padding: 0 20px !important;
+    height: 40px !important;
+    line-height: 40px !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Secondary Button (Sync) */
+.owm-settings-wrap .button-secondary {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #475569 !important;
+    padding: 0 20px !important;
+    height: 40px !important;
+    line-height: 40px !important;
+    border-radius: 6px !important;
+}
+
+.owm-settings-wrap .button:hover {
+    transform: translateY(-1px);
+}
+
+/* Sync Info Banner */
+.owm-sync-status {
+    background: #f0f9ff;
+    border-left: 4px solid #0ea5e9;
+    padding: 15px;
+    border-radius: 0 6px 6px 0;
+    margin: 20px 0;
+}

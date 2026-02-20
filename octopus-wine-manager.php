@@ -15,6 +15,21 @@ add_action('init', function() {
     ]);
 });
 
+if (!defined('ABSPATH')) exit;
+
+if (is_admin()) {
+    new \OctopusWineManagment\Admin\AdminSettings();
+}
+
+add_action('init', function() {
+    register_post_type('hb_product', [
+        'labels' => ['name' => 'HotelBoss Products'],
+        'public' => true,
+        'menu_icon' => 'dashicons-store',
+        'supports' => ['title', 'editor', 'thumbnail']
+    ]);
+});
+
 function omw_run_product_sync() {
     $company_id = get_option('omw_company_id');
     $client = new HotelBossClient($company_id);
