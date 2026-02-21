@@ -48,8 +48,8 @@ class AdminSettings {
       }
     
       wp_enqueue_style(
-        'owm-admin-css', 
-        plugin_dir_url(dirname(__DIR__, 1)) . 'assets/css/owm-admin.css', 
+        'owm-admin-styles', 
+        plugin_dir_url(dirname(__DIR__, 1)) . 'assets/styles/owm-admin.css', 
         [], 
         '1.0.0'
       );

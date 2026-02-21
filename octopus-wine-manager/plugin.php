@@ -1,6 +1,6 @@
 <?php
 
-require_once "octopus-wine-managment.php";
+require_once __DIR__ . "/octopus-wine-managment.php";
 
 /**
  * Plugin Name: Octopus wine managment Plugin
