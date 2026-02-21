@@ -1,4 +1,5 @@
 <?php
+
 namespace OctopusWineManagment\Admin;
 
 use OctopusWineManagment\API\HotelBossClient;
@@ -32,9 +33,9 @@ class AdminSettings {
 
         add_settings_section('owm_auth_section', 'API Authentication', null, 'owm-settings');
         
-        add_settings_field('owm_company_id', 'Company ID', [$this, 'render_input'], 'owm-settings', 'hb_auth_section', ['name' => 'hb_company_id']);
-        add_settings_field('owm_username', 'Username', [$this, 'render_input'], 'owm-settings', 'hb_auth_section', ['name' => 'hb_username']);
-        add_settings_field('owm_password', 'Password', [$this, 'render_input'], 'owm-settings', 'hb_auth_section', ['name' => 'hb_password', 'type' => 'password']);
+        add_settings_field('owm_company_id', 'Company ID', [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_company_id']);
+        add_settings_field('owm_username', 'Username', [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_username']);
+        add_settings_field('owm_password', 'Password', [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_password', 'type' => 'password']);
         
         add_settings_section('owm_sync_section', 'Synchronization', null, 'owm-settings');
         add_settings_field('owm_hotel_id', 'Assign Hotel', [$this, 'render_hotel_dropdown'], 'owm-settings', 'owm_sync_section');
@@ -42,7 +43,7 @@ class AdminSettings {
     
     public function enqueue_admin_assets($hook) {
       // Only load on our specific settings page
-      if ('toplevel_page_hotelboss-settings' !== $hook) {
+      if ('toplevel_page_owm-settings' !== $hook) {
         return;
       }
     
@@ -119,7 +120,7 @@ class AdminSettings {
             <p class="description" style="margin-bottom: 15px;">
                 This will pull all products and their attributes (like Origin Country) from the assigned hotel.
             </p>
-            <input type="submit" name="hb_manual_sync" class="button button-secondary" value="⚡ Sync Products Now">
+            <input type="submit" name="owm_manual_sync" class="button button-secondary" value="⚡ Sync Products Now">
         </form>
     </div>
     <?php

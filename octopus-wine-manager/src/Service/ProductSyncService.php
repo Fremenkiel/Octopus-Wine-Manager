@@ -6,7 +6,7 @@ use OctopusWineManagment\DTO\ProductDTO;
 
 class ProductSyncService {
     private $client;
-    private $post_type = 'owm_product'; // Your CPT slug
+    private $post_type = 'owm_product';
 
     public function __construct(HotelBossClient $client) {
         $this->client = $client;

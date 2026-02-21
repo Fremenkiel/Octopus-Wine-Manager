@@ -1,6 +1,6 @@
 <?php
 
-namespace OctopusWineManagment\API;
+namespace OctopusWineManagment\DTO;
 
 /**
  * Represents a single Product item
