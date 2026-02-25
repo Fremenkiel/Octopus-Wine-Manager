@@ -47,18 +47,21 @@ class ProductSyncService {
         $post_id = $existing_post_id ? wp_update_post(array_merge($post_data, ['ID' => $existing_post_id])) : wp_insert_post($post_data);
 
         if (!is_wp_error($post_id)) {
-            // Standard metadata
-            update_post_meta($post_id, '_owm_product_id', $dto->id);
-            
-            // Look for the "Country" attribute specifically
-            // Note: Replace 'Country' with the exact string returned by the API
-            $origin_country = $dto->getAttribute('Country'); 
-            
+            update_post_meta($post_id, '_owm_product_id',       $dto->id);
+            update_post_meta($post_id, '_owm_price',            $dto->price);
+            update_post_meta($post_id, '_owm_vat_percent',      $dto->vatPercent);
+            update_post_meta($post_id, '_owm_quantity',         $dto->quantity);
+            update_post_meta($post_id, '_owm_storage_location', sanitize_text_field($dto->storageLocation ?? ''));
+            update_post_meta($post_id, '_owm_product_group_name', sanitize_text_field($dto->productGroupName ?? ''));
+
+            $origin_country = $dto->getAttribute('Country');
             if ($origin_country) {
                 update_post_meta($post_id, '_owm_country_origin', sanitize_text_field($origin_country));
             }
-            
-            // Optionally store all attributes for reference
+
+            $region = $dto->getAttribute('Region') ?? $dto->getAttribute('Grape region') ?? '';
+            update_post_meta($post_id, '_owm_region', sanitize_text_field($region));
+
             update_post_meta($post_id, '_owm_all_attributes', $dto->attributes);
         }
     }

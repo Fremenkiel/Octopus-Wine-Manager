@@ -1,0 +1,10 @@
+{
+    "autoload": {
+        "psr-4": {
+            "OctopusWineManagment\\": "src/"
+        }
+    },
+    "require": {
+        "mpdf/mpdf": "^8.2"
+    }
+}
