@@ -5,6 +5,7 @@ namespace OctopusWineManagment\Admin;
 use OctopusWineManagment\API\HotelBossClient;
 use OctopusWineManagment\Services\ProductSyncService;
 use OctopusWineManagment\PDF\PdfGenerator;
+use OctopusWineManagment\WineFields;
 
 class AdminSettings {
     private $option_group = 'owm_settings_group';
@@ -172,12 +173,7 @@ class AdminSettings {
             }
         }
 
-        $row_fields = [
-            'name'     => 'Wine Name',
-            'price'    => 'Price',
-            'vintage'   => 'Vintage',
-            'origin'  =>  'Origin',
-        ];
+        $row_fields = WineFields::labels();
         ?>
         <div class="wrap owm-settings-wrap owm-pdf-wrap">
             <h1>PDF Wine List Template</h1>

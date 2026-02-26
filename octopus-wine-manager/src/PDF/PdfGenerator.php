@@ -3,19 +3,11 @@
 namespace OctopusWineManagment\PDF;
 
 use Mpdf\Mpdf;
+use OctopusWineManagment\WineFields;
 
 class PdfGenerator {
 
     private const CANVAS_WIDTH = 595.0;
-
-    private const FIELD_LABELS = [
-        'name'     => 'Wine',
-        'price'    => 'Price',
-        'vat'      => 'VAT %',
-        'sku'      => 'Item #',
-        'quantity' => 'Stock',
-        'location' => 'Location',
-    ];
 
     /** Default styles used when the user hasn't placed an H1/H2/H3 element */
     private const HEADER_DEFAULTS = [
@@ -39,10 +31,10 @@ class PdfGenerator {
 
         $mpdf = new Mpdf([
             'format'        => 'A4',
-            'margin_left'   => 15,
-            'margin_right'  => 15,
-            'margin_top'    => 20,
-            'margin_bottom' => 20,
+            'margin_left'   => 90,
+            'margin_right'  => 30,
+            'margin_top'    => 30,
+            'margin_bottom' => 85,
             'tempDir'       => $temp_dir,
             'fontDir'       => [$font_dir],
             'fontdata'      => [
@@ -160,7 +152,7 @@ class PdfGenerator {
         $col_styles = '';
 
         foreach ($columns as $i => $col) {
-            $label = self::FIELD_LABELS[$col['key']] ?? ucwords(str_replace('_', ' ', $col['key']));
+            $label = WineFields::labels()[$col['key']] ?? ucwords(str_replace('_', ' ', $col['key']));
             $width = $col['width'] ?? 'auto';
             $col_heads .= sprintf('<th class="col-%d" style="width:%s">%s</th>', $i, esc_attr($width), esc_html($label));
 
