@@ -35,6 +35,8 @@ class PdfGenerator {
         $temp_dir   = $upload_dir['basedir'] . '/owm-mpdf-tmp';
         wp_mkdir_p($temp_dir);
 
+        $font_dir = plugin_dir_path(dirname(__DIR__, 1)) . 'assets/fonts/';
+
         $mpdf = new Mpdf([
             'format'        => 'A4',
             'margin_left'   => 15,
@@ -42,6 +44,10 @@ class PdfGenerator {
             'margin_top'    => 20,
             'margin_bottom' => 20,
             'tempDir'       => $temp_dir,
+            'fontDir'       => [$font_dir],
+            'fontdata'      => [
+                'twcenmt' => ['R' => 'tw-cen-mt-regular.ttf'],
+            ],
         ]);
 
         $mpdf->SetTitle('Wine List');
@@ -286,6 +292,10 @@ HTML;
     }
 
     private function safe_font(string $font): string {
+        // Map canvas font names to their mPDF-registered keys
+        $custom = ['TW Cen MT' => 'twcenmt'];
+        if (isset($custom[$font])) return $custom[$font];
+
         $allowed = ['Arial', 'Helvetica', 'Times', 'Times New Roman', 'Courier', 'Georgia'];
         return in_array($font, $allowed, true) ? $font : 'Arial';
     }

@@ -88,6 +88,7 @@ class AdminSettings {
                 'template' => get_option('owm_pdf_template', ''),
                 'ajaxUrl'  => admin_url('admin-ajax.php'),
                 'nonce'    => wp_create_nonce('owm_generate_pdf_nonce'),
+                'fontUrl'  => plugin_dir_url(dirname(__DIR__, 1)) . 'assets/fonts/tw-cen-mt-regular.ttf',
             ]);
         }
     }
@@ -174,10 +175,8 @@ class AdminSettings {
         $row_fields = [
             'name'     => 'Wine Name',
             'price'    => 'Price',
-            'vat'      => 'VAT %',
-            'quantity' => 'Quantity',
-            'location' => 'Storage Location',
-            'sku'      => 'Item #',
+            'vintage'   => 'Vintage',
+            'origin'  =>  'Origin',
         ];
         ?>
         <div class="wrap owm-settings-wrap owm-pdf-wrap">
@@ -238,6 +237,7 @@ class AdminSettings {
                                     <option value="Times New Roman">Times New Roman</option>
                                     <option value="Helvetica">Helvetica</option>
                                     <option value="Courier">Courier</option>
+                                    <option value="TW Cen MT">TW Cen MT</option>
                                 </select>
                             </div>
                             <div class="owm-toolbar-group">

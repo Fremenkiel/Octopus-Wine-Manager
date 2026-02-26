@@ -3,8 +3,16 @@
 const CANVAS_W   = 595;
 const CANVAS_H   = 380;
 const ZONE_SPLIT = 240;   // 0–240 = header zone, 240–380 = wine row zone
-const MARGIN     = 20;
+const MARGIN_LEFT     = 88;
+const MARGIN_RIGHT     = 30;
 const SNAP_PX    = 8;
+
+/* ─── Custom font preload ────────────────────────────────────────────── */
+
+if (window.owmTemplateData && window.owmTemplateData.fontUrl) {
+  const twCenMT = new FontFace('TW Cen MT', 'url(' + owmTemplateData.fontUrl + ')');
+  twCenMT.load().then(function (font) { document.fonts.add(font); });
+}
 
 /* ─── Canvas ────────────────────────────────────────────────────────── */
 
@@ -52,8 +60,8 @@ const refCenterX = makeLine(CANVAS_W / 2, 0, CANVAS_W / 2, CANVAS_H, {
 
 /* ─── Snap guides (blue, initially hidden) ───────────────────────────── */
 
-const snapLeft    = makeLine(MARGIN,            0, MARGIN,            CANVAS_H, { stroke: '#3b82f6', visible: false });
-const snapRight   = makeLine(CANVAS_W - MARGIN, 0, CANVAS_W - MARGIN, CANVAS_H, { stroke: '#3b82f6', visible: false });
+const snapLeft    = makeLine(MARGIN_LEFT,            0, MARGIN_LEFT,            CANVAS_H, { stroke: '#3b82f6', visible: true, strokeDashArray: [4, 4] });
+const snapRight   = makeLine(CANVAS_W - MARGIN_RIGHT, 0, CANVAS_W - MARGIN_RIGHT, CANVAS_H, { stroke: '#3b82f6', visible: true, strokeDashArray: [4, 4] });
 const snapCenterX = makeLine(CANVAS_W / 2,      0, CANVAS_W / 2,      CANVAS_H, { stroke: '#3b82f6', strokeDashArray: [4, 4], visible: false });
 
 // Zone-specific vertical (y-axis) centre snaps
@@ -103,14 +111,16 @@ canvas.on('object:moving', function (e) {
   const oh  = obj.getScaledHeight();
   const ol  = obj.left;
   const ocx = ol + ow / 2;
-  const ocy = obj.top + oh / 2;
+  const oty = obj.top;
+  const ocy = oty + oh / 2;
+  const oby = oty + oh;
 
   // ── X-axis snaps ──────────────────────────────────────────────────
-  if (Math.abs(ol - MARGIN) < SNAP_PX) {
-    obj.set({ left: MARGIN });
+  if (Math.abs(ol - MARGIN_LEFT) < SNAP_PX) {
+    obj.set({ left: MARGIN_LEFT });
     snapLeft.set({ visible: true });
-  } else if (Math.abs(ol + ow - (CANVAS_W - MARGIN)) < SNAP_PX) {
-    obj.set({ left: CANVAS_W - MARGIN - ow });
+  } else if (Math.abs(ol + ow - (CANVAS_W - MARGIN_RIGHT)) < SNAP_PX) {
+    obj.set({ left: CANVAS_W - MARGIN_RIGHT - ow });
     snapRight.set({ visible: true });
   } else if (Math.abs(ocx - CANVAS_W / 2) < SNAP_PX) {
     obj.set({ left: CANVAS_W / 2 - ow / 2 });
@@ -121,6 +131,8 @@ canvas.on('object:moving', function (e) {
   if (Math.abs(ocy - hZoneMid) < SNAP_PX) {
     obj.set({ top: hZoneMid - oh / 2 });
     snapHMid.set({ visible: true });
+  }  else if (Math.abs(oby - ZONE_SPLIT) < SNAP_PX) {
+    obj.set({ top: ZONE_SPLIT - oh });
   } else if (Math.abs(ocy - rZoneMid) < SNAP_PX) {
     obj.set({ top: rZoneMid - oh / 2 });
     snapRMid.set({ visible: true });
@@ -156,7 +168,7 @@ function addField(key, role) {
   const d = defs[role] || defs.row;
 
   const text = new fabric.Text('{{' + key + '}}', {
-    left:             MARGIN + stagger,
+    left:             MARGIN_LEFT + stagger,
     top:              d.top  + stagger,
     fontFamily:       document.getElementById('owm-font-family').value || 'Arial',
     fontSize:         d.fontSize,

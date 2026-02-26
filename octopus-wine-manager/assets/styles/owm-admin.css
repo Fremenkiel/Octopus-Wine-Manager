@@ -1,3 +1,10 @@
+@font-face {
+    font-family: 'TW Cen MT';
+    src: url('../fonts/tw-cen-mt-regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 /* Container styling */
 .owm-settings-wrap {
     max-width: 800px;
@@ -30,7 +37,7 @@
 
 /* Form Layout fixes */
 .owm-settings-wrap th {
-    padding: 20px 10px 20px 0;
+    padding: 20px 10px;
     width: 200px;
     color: #64748b;
     font-weight: 500;
