@@ -3,6 +3,8 @@
 namespace OctopusWineManagment\API;
 
 use OctopusWineManagment\DTO\ProductDTO;
+use OctopusWineManagment\DTO\ProductGroupDTO;
+use OctopusWineManagment\DTO\InventoryMovementDTO;
 
 class HotelBossClient {
     private $baseUrl = 'https://webapi.hotelboss.dk/ExternalHotel';
@@ -120,6 +122,10 @@ class HotelBossClient {
 
         if ($authenticated && $this->token) {
             $headers[] = "Authorization: Bearer {$this->token}";
+        }
+
+        if ($method == 'GET') {
+          $path = $path . (str_contains($path, '?') ? '&' : '?') . 'companyID=' . $this->companyId;
         }
 
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);

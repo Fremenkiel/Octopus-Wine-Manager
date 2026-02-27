@@ -13,6 +13,17 @@ services:
     expose:
       - 3306
       - 33060
+  phpmyadmin:
+    image: phpmyadmin:latest
+    depends_on:
+      - db
+    restart: always
+    ports:
+      - 8080:80
+    environment:
+      PMA_HOST: db
+      PMA_USER: wordpress
+      PMA_PASSWORD: wordpress
   wordpress:
     build: .
     depends_on:

@@ -304,7 +304,11 @@ document.getElementById('owm-generate-pdf').addEventListener('click', function (
   fetch(owmTemplateData.ajaxUrl, {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ action: 'owm_generate_pdf', nonce: owmTemplateData.nonce }),
+    body: new URLSearchParams({
+      action:   'owm_generate_pdf',
+      nonce:    owmTemplateData.nonce,
+      template: JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel'])),
+    }),
   })
     .then(res => {
       const ct = res.headers.get('content-type') || '';

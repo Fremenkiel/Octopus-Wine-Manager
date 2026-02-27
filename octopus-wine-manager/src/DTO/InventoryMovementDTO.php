@@ -21,7 +21,6 @@ class InventoryMovementDTO {
         $this->name = $data['name'] ?? null;
         $this->quantity = $data['quantity'] ?? 0.0;
         $this->date = $data['date'] ?? null;
-        $this->offerID = $data['offerID'] ?? null;
         $this->costPrice = $data['costPrice'] ?? 0.0;
         $this->total = $data['total'] ?? 0.0;
     }

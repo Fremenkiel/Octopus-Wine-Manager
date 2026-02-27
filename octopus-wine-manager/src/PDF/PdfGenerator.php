@@ -16,9 +16,11 @@ class PdfGenerator {
         3 => ['fontSize' => '11px', 'fontFamily' => 'Arial', 'fontWeight' => 'normal', 'fontStyle' => 'italic', 'fill' => '#64748b', 'textAlign' => 'left'],
     ];
 
-    public function generate(): void {
-        $template_json = get_option('owm_pdf_template', '');
-        $template      = $template_json ? json_decode($template_json, true) : null;
+    public function generate(string $template_json = ''): void {
+        if ($template_json === '') {
+            $template_json = get_option('owm_pdf_template', '');
+        }
+        $template = $template_json ? json_decode($template_json, true) : null;
         $parsed        = $this->extract_template($template);
         $wines         = $this->get_all_wines();
         $html          = $this->render_html($wines, $parsed['columns'], $parsed['headers']);
@@ -31,10 +33,10 @@ class PdfGenerator {
 
         $mpdf = new Mpdf([
             'format'        => 'A4',
-            'margin_left'   => 90,
-            'margin_right'  => 30,
-            'margin_top'    => 30,
-            'margin_bottom' => 85,
+            'margin_left'   => 30,
+            'margin_right'  => 10,
+            'margin_top'    => 12,
+            'margin_bottom' => 30,
             'tempDir'       => $temp_dir,
             'fontDir'       => [$font_dir],
             'fontdata'      => [
@@ -60,16 +62,66 @@ class PdfGenerator {
 
         $wines = [];
         foreach ($posts as $post) {
+            $country = get_post_meta($post->ID, '_owm_country_origin',     true) ?: 'N/A';
+            $region = get_post_meta($post->ID, '_owm_region',             true) ?: '';
+            $sub_region = get_post_meta($post->ID, '_owm_sub_region',         true) ?: '';
+            $commune = get_post_meta($post->ID, '_owm_commune',            true) ?: '';
+            $village = get_post_meta($post->ID, '_owm_village',            true) ?: '';
+            $vineyard = get_post_meta($post->ID, '_owm_vineyard',           true) ?: '';
+            $grape = get_post_meta($post->ID, '_owm_grape',              true) ?: '';
+
+            $wine = get_post_meta($post->ID, '_owm_wine',           true) ?: '';
+            $producer = get_post_meta($post->ID, '_owm_producer',           true) ?: '';
+            $appellation = get_post_meta($post->ID, '_owm_appellation',        true) ?: '';
+            $sweetness = get_post_meta($post->ID, '_owm_sweetness',          true) ?: '';
+            $classification = get_post_meta($post->ID, '_owm_classification',           true) ?: '';
+            $volume = get_post_meta($post->ID, '_owm_volume',           true) ?: '';
+
+            if (isset($volume) && $volume !== '' && $volume !== '0.75') {
+              $volume = $volume . ' L';
+            } else {
+              $volume = '';
+            }
+
+            $wine = implode(', ', array_filter([
+                                    $producer,
+                                    $wine,
+                                    $classification,
+                                    $sweetness,
+                                    $volume,
+                                 ]));
+
+            if (!isset($wine) || $wine == '') {
+              continue;
+            }
+
             $wines[] = [
-                'name'     => $post->post_title,
-                'category' => get_post_meta($post->ID, '_owm_product_group_name', true) ?: 'Other',
-                'origin'   => get_post_meta($post->ID, '_owm_country_origin',     true) ?: 'Unknown',
-                'region'   => get_post_meta($post->ID, '_owm_region',             true) ?: '',
-                'price'    => get_post_meta($post->ID, '_owm_price',              true) ?: '',
-                'vat'      => get_post_meta($post->ID, '_owm_vat_percent',        true) ?: '',
-                'sku'      => get_post_meta($post->ID, '_owm_product_id',         true) ?: '',
-                'quantity' => get_post_meta($post->ID, '_owm_quantity',           true) ?: '',
-                'location' => get_post_meta($post->ID, '_owm_storage_location',   true) ?: '',
+                'name'           => $post->post_title,
+                'category'       => get_post_meta($post->ID, '_owm_product_group_name', true) ?: 'Andet',
+                'country'        => $country,
+                'region'         => $region,
+                'sub_region'     => $sub_region,
+                'commune'        => $commune,
+                'village'        => $village,
+                'producer'       => $producer,
+                'vintage'        => get_post_meta($post->ID, '_owm_vintage',            true) ?: '',
+                'grape'          => $grape,
+                'price'          => get_post_meta($post->ID, '_owm_price',              true) ?: '',
+                'quantity'       => get_post_meta($post->ID, '_owm_quantity',           true) ?: '',
+                'appellation'    => $appellation,
+                'classification' => $classification,
+                'sweetness'      => $sweetness,
+                'vineyard'       => $village,
+                'origin'         => implode(' / ', array_filter([
+                                    $country,
+                                    $region,
+                                    $sub_region,
+                                    $commune,
+                                    $village,
+                                    $vineyard,
+                                    $grape,
+                                 ])),
+                'wine'         => $wine,
             ];
         }
 
@@ -147,15 +199,10 @@ class PdfGenerator {
             return '<html><body style="font-family:Arial;padding:40px"><p>No products found. Please sync from the API first.</p></body></html>';
         }
 
-        // Build column header cells + per-column CSS
-        $col_heads  = '';
+        // Build per-column CSS
         $col_styles = '';
 
         foreach ($columns as $i => $col) {
-            $label = WineFields::labels()[$col['key']] ?? ucwords(str_replace('_', ' ', $col['key']));
-            $width = $col['width'] ?? 'auto';
-            $col_heads .= sprintf('<th class="col-%d" style="width:%s">%s</th>', $i, esc_attr($width), esc_html($label));
-
             $fs = isset($col['fontSize']) ? intval($col['fontSize']) . 'px' : '11px';
             $ff = $this->safe_font($col['fontFamily'] ?? 'Arial');
             $fw = ($col['fontWeight'] ?? '') === 'bold'   ? 'bold'   : 'normal';
@@ -173,13 +220,21 @@ class PdfGenerator {
         // Group: wine type → country → region → wines
         $tree = [];
         foreach ($wines as $wine) {
-            $tree[$wine['category']][$wine['origin']][$wine['region'] ?: '__none__'][] = $wine;
+            $tree[$wine['category']][$wine['country']][$wine['region'] ?: '__none__'][] = $wine;
         }
-        ksort($tree);
+
+        // Sort types by saved order, then alphabetically for unlisted types
+        $saved_order = json_decode(get_option('owm_type_order', '[]'), true) ?: [];
+        $order_map   = array_flip($saved_order);
+        uksort($tree, function ($a, $b) use ($order_map) {
+            $ia = $order_map[$a] ?? PHP_INT_MAX;
+            $ib = $order_map[$b] ?? PHP_INT_MAX;
+            if ($ia !== $ib) return $ia <=> $ib;
+            return strcasecmp($a, $b);
+        });
 
         $body    = '';
         $colspan = count($columns);
-        $total   = count($wines);
 
         foreach ($tree as $category => $by_country) {
             ksort($by_country);
@@ -193,7 +248,7 @@ class PdfGenerator {
                 // H2 — Country
                 $body .= sprintf('<div class="pdf-h2">%s</div>', esc_html($country));
 
-                $body .= '<table><thead><tr>' . $col_heads . '</tr></thead><tbody>';
+                $body .= '<table><tbody>';
 
                 foreach ($by_region as $region => $region_wines) {
                     if ($region !== '__none__') {
@@ -204,6 +259,15 @@ class PdfGenerator {
                             esc_html($region)
                         );
                     }
+
+                    // Sort wines within region: sub_region → commune → village → producer → name
+                    usort($region_wines, function ($a, $b) {
+                        foreach (['sub_region', 'commune', 'village', 'producer'] as $key) {
+                            $cmp = strcasecmp($a[$key] ?? '', $b[$key] ?? '');
+                            if ($cmp !== 0) return $cmp;
+                        }
+                        return strcasecmp($a['name'], $b['name']);
+                    });
 
                     foreach ($region_wines as $wine) {
                         $body .= '<tr class="wine-row">';
@@ -219,8 +283,6 @@ class PdfGenerator {
             }
         }
 
-        $date = esc_html(date('F j, Y'));
-
         return <<<HTML
 <!DOCTYPE html>
 <html lang="en">
@@ -229,34 +291,23 @@ class PdfGenerator {
 <style>
 body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
 
-.page-header { text-align: center; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #1e293b; }
-.page-header h1 { font-size: 24px; font-weight: 700; letter-spacing: 0.06em; margin: 0 0 4px; text-transform: uppercase; }
-.page-header p  { font-size: 10px; color: #64748b; margin: 0; }
-
 /* H1 — Wine type (from template) */
 .pdf-h1 { {$h1_css} margin: 18px 0 4px; padding: 7px 10px; }
 
 /* H2 — Country (from template) */
-.pdf-h2 { {$h2_css} padding: 5px 0 3px; margin: 6px 0 0; border-bottom: 1px solid currentColor; }
+.pdf-h2 { {$h2_css} padding: 5px 0 3px; margin: 6px 0 0; }
 
 /* Table */
 table { width: 100%; border-collapse: collapse; margin-bottom: 2px; }
-th { text-align: left; padding: 4px 8px; font-size: 9px; font-weight: 700;
-     text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid #cbd5e1; }
-td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-.wine-row:nth-child(even) td { background: #f8fafc; }
+td { padding: 5px 8px; vertical-align: middle; }
 
 /* H3 — Region as table section row (from template) */
-.pdf-h3 { {$h3_css} padding: 4px 8px; background: #f1f5f9; border-top: 1px solid #e2e8f0; }
+.pdf-h3 { {$h3_css} padding: 4px 8px; }
 
 {$col_styles}
 </style>
 </head>
 <body>
-<div class="page-header">
-  <h1>Wine List</h1>
-  <p>{$total} wines &mdash; {$date}</p>
-</div>
 {$body}
 </body>
 </html>

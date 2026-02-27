@@ -12,11 +12,10 @@ class WineFields {
      */
     public static function labels(): array {
         return [
-            'name'     => 'Wine',
-            'price'    => 'Price',
-            'location' => 'Location',
-            'vintage'  => 'Vintage',
-            'origin'   => 'Origin',
+            'wine'        => 'Wine',
+            'origin'      => 'Origin',
+            'vintage'     => 'Vintage',
+            'price'       => 'Price',
         ];
     }
 }

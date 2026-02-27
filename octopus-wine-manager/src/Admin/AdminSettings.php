@@ -4,6 +4,7 @@ namespace OctopusWineManagment\Admin;
 
 use OctopusWineManagment\API\HotelBossClient;
 use OctopusWineManagment\Services\ProductSyncService;
+use OctopusWineManagment\Services\InventorySyncService;
 use OctopusWineManagment\PDF\PdfGenerator;
 use OctopusWineManagment\WineFields;
 
@@ -14,7 +15,12 @@ class AdminSettings {
         add_action('admin_menu',             [$this, 'add_menu_page']);
         add_action('admin_init',             [$this, 'register_settings']);
         add_action('admin_enqueue_scripts',  [$this, 'enqueue_admin_assets']);
-        add_action('wp_ajax_owm_generate_pdf', [$this, 'handle_generate_pdf']);
+        add_action('wp_ajax_owm_generate_pdf',      [$this, 'handle_generate_pdf']);
+        add_action('admin_action_owm_download_pdf', [$this, 'handle_download_pdf_direct']);
+        add_action('owm_scheduled_inventory_sync', [$this, 'run_scheduled_inventory_sync']);
+        if (!wp_next_scheduled('owm_scheduled_inventory_sync')) {
+            wp_schedule_event(time(), 'hourly', 'owm_scheduled_inventory_sync');
+        }
     }
 
     public function add_menu_page(): void {
@@ -35,6 +41,14 @@ class AdminSettings {
             'owm-pdf-template',
             [$this, 'render_pdf_template_page']
         );
+
+        // Direct-download link in the admin sidebar menu
+        global $submenu;
+        $submenu['owm-settings'][] = [
+            'Download Wine List PDF',
+            'manage_options',
+            wp_nonce_url(admin_url('admin.php?action=owm_download_pdf'), 'owm_download_pdf_direct'),
+        ];
     }
 
     public function register_settings(): void {
@@ -43,6 +57,12 @@ class AdminSettings {
         register_setting($this->option_group, 'owm_password');
         register_setting($this->option_group, 'owm_selected_hotel_id');
         register_setting($this->option_group, 'owm_pdf_template');
+        register_setting($this->option_group, 'owm_type_order', [
+            'sanitize_callback' => function ($value) {
+                $arr = is_array($value) ? $value : [];
+                return wp_json_encode(array_values(array_map('sanitize_text_field', $arr)));
+            },
+        ]);
 
         add_settings_section('owm_auth_section', 'API Authentication', null, 'owm-settings');
 
@@ -52,6 +72,9 @@ class AdminSettings {
 
         add_settings_section('owm_sync_section', 'Synchronization', null, 'owm-settings');
         add_settings_field('owm_hotel_id', 'Assign Hotel', [$this, 'render_hotel_dropdown'], 'owm-settings', 'owm_sync_section');
+
+        add_settings_section('owm_type_section', 'Wine Type Order', [$this, 'render_type_order_section_description'], 'owm-settings');
+        add_settings_field('owm_type_order', 'Type Sort Order', [$this, 'render_type_order_field'], 'owm-settings', 'owm_type_section');
     }
 
     public function enqueue_admin_assets($hook): void {
@@ -66,6 +89,20 @@ class AdminSettings {
             [],
             '1.0.1'
         );
+
+        // Sortable type-order list on the main settings page
+        if ($hook === 'toplevel_page_owm-settings') {
+            wp_enqueue_script('jquery-ui-sortable');
+            wp_add_inline_script('jquery-ui-sortable', '
+jQuery(function($) {
+    $("#owm-type-order-list").sortable({
+        handle: ".owm-drag-handle",
+        placeholder: "owm-sort-placeholder",
+        forcePlaceholderSize: true
+    });
+});
+');
+        }
 
         // Only load Fabric.js and the canvas editor on the PDF template page
         if ($hook === 'octopus-wine-managment_page_owm-pdf-template') {
@@ -92,6 +129,56 @@ class AdminSettings {
                 'fontUrl'  => plugin_dir_url(dirname(__DIR__, 1)) . 'assets/fonts/tw-cen-mt-regular.ttf',
             ]);
         }
+    }
+
+    public function render_type_order_section_description(): void {
+        echo '<p class="description">Set the order in which wine types appear in the PDF. Drag items to reorder, then save settings.</p>';
+    }
+
+    public function render_type_order_field(): void {
+        // Collect distinct type values from published owm_product posts
+        global $wpdb;
+        $meta_values = $wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT pm.meta_value
+             FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+             WHERE pm.meta_key = %s
+               AND p.post_type = 'owm_product'
+               AND p.post_status = 'publish'
+               AND pm.meta_value != ''
+             ORDER BY pm.meta_value ASC",
+            '_owm_product_group_name'
+        ));
+
+        // Load saved order and merge
+        $saved = json_decode(get_option('owm_type_order', '[]'), true) ?: [];
+        $all   = array_unique(array_merge($saved, $meta_values));
+
+        // Put unsaved types (not in $saved) in alphabetical order at the end
+        $unlisted = array_diff($meta_values, $saved);
+        sort($unlisted);
+        $ordered = array_merge($saved, $unlisted);
+        $ordered = array_unique($ordered); // deduplicate, preserve order
+
+        if (empty($ordered)) {
+            echo '<p class="description">No wine types found. Sync products first.</p>';
+            return;
+        }
+
+        echo '<ul id="owm-type-order-list" style="max-width:400px;margin:0;padding:0;list-style:none;">';
+        foreach ($ordered as $type) {
+            printf(
+                '<li style="display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:4px;background:#fff;border:1px solid #ddd;border-radius:3px;cursor:grab;">'
+                . '<span class="owm-drag-handle" style="cursor:grab;font-size:16px;color:#999;line-height:1;">&#9776;</span>'
+                . '<span>%s</span>'
+                . '<input type="hidden" name="owm_type_order[]" value="%s">'
+                . '</li>',
+                esc_html($type),
+                esc_attr($type)
+            );
+        }
+        echo '</ul>';
+        echo '<p class="description" style="margin-top:8px;">Drag to reorder. Types not in this list will follow alphabetically.</p>';
     }
 
     public function render_input($args): void {
@@ -127,6 +214,15 @@ class AdminSettings {
             $this->handle_sync();
         }
 
+        if (isset($_POST['owm_manual_inventory_sync']) && check_admin_referer('owm_sync_action')) {
+            $this->handle_inventory_sync();
+        }
+
+        if (isset($_POST['owm_manual_sync_all']) && check_admin_referer('owm_sync_action')) {
+            $this->handle_sync();
+            $this->handle_inventory_sync();
+        }
+
         if (get_option('owm_username') && !get_transient('owm_hotel_list')) {
             $this->refresh_hotel_list();
         }
@@ -135,9 +231,24 @@ class AdminSettings {
             <h1>Octopus API Integration</h1>
 
             <div class="owm-sync-status">
-                <strong>System Status:</strong>
-                <?php echo esc_html(get_option('owm_last_sync') ?: 'Never synced'); ?>
+                <strong>Products last synced:</strong>
+                <?php echo esc_html(get_option('owm_last_sync') ?: 'Never'); ?>
+                &nbsp;&nbsp;
+                <strong>Inventory last synced:</strong>
+                <?php echo esc_html(get_option('owm_last_inventory_sync') ?: 'Never'); ?>
             </div>
+
+            <h2>PDF Export</h2>
+            <p class="description" style="margin-bottom: 15px;">
+                Generate a PDF wine list using the saved template. To customise layout and styles, visit the
+                <a href="<?php echo esc_url(admin_url('admin.php?page=owm-pdf-template')); ?>">PDF Template</a> page.
+            </p>
+            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?action=owm_download_pdf'), 'owm_download_pdf_direct')); ?>"
+               class="button owm-btn-generate">
+                Download Wine List PDF
+            </a>
+
+            <hr style="margin: 40px 0; border: 0; border-top: 1px solid #e2e8f0;">
 
             <form method="post" action="options.php">
                 <?php
@@ -155,7 +266,11 @@ class AdminSettings {
                 <p class="description" style="margin-bottom: 15px;">
                     This will pull all products and their attributes from the assigned hotel.
                 </p>
+                <input type="submit" name="owm_manual_sync_all" class="button button-primary" value="Sync All Now">
+                &nbsp;
                 <input type="submit" name="owm_manual_sync" class="button button-secondary" value="Sync Products Now">
+                &nbsp;
+                <input type="submit" name="owm_manual_inventory_sync" class="button button-secondary" value="Sync Inventory Now">
             </form>
         </div>
         <?php
@@ -317,11 +432,39 @@ class AdminSettings {
         }
 
         try {
+            $template_json = '';
+            if (!empty($_POST['template'])) {
+                $raw = wp_unslash($_POST['template']);
+                if (json_decode($raw) !== null) {
+                    $template_json = $raw;
+                }
+            }
+
             $generator = new PdfGenerator();
-            $generator->generate(); // sends headers + PDF binary, then exits
+            $generator->generate($template_json); // sends headers + PDF binary, then exits
         } catch (\Exception $e) {
             status_header(500);
             echo 'PDF generation failed: ' . esc_html($e->getMessage());
+        }
+
+        exit;
+    }
+
+    public function handle_download_pdf_direct(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized', '', ['response' => 403]);
+        }
+        check_admin_referer('owm_download_pdf_direct');
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        try {
+            $generator = new PdfGenerator();
+            $generator->generate(); // uses saved owm_pdf_template option
+        } catch (\Exception $e) {
+            wp_die('PDF generation failed: ' . esc_html($e->getMessage()));
         }
 
         exit;
@@ -348,6 +491,29 @@ class AdminSettings {
             echo '<div class="notice notice-success is-dismissible"><p>Successfully synced ' . intval($count) . ' products.</p></div>';
         } catch (\Exception $e) {
             echo '<div class="notice notice-error is-dismissible"><p>Sync failed: ' . esc_html($e->getMessage()) . '</p></div>';
+        }
+    }
+
+    private function handle_inventory_sync(): void {
+        $client = new HotelBossClient(get_option('owm_company_id'));
+        try {
+            $client->authenticate(get_option('owm_username'), get_option('owm_password'));
+            $sync  = new InventorySyncService($client);
+            $count = $sync->sync_inventory();
+            echo '<div class="notice notice-success is-dismissible"><p>Inventory synced — ' . intval($count) . ' products updated.</p></div>';
+        } catch (\Exception $e) {
+            echo '<div class="notice notice-error is-dismissible"><p>Inventory sync failed: ' . esc_html($e->getMessage()) . '</p></div>';
+        }
+    }
+
+    public function run_scheduled_inventory_sync(): void {
+        $client = new HotelBossClient(get_option('owm_company_id'));
+        try {
+            $client->authenticate(get_option('owm_username'), get_option('owm_password'));
+            $sync = new InventorySyncService($client);
+            $sync->sync_inventory();
+        } catch (\Exception $e) {
+            error_log('Scheduled inventory sync failed: ' . $e->getMessage());
         }
     }
 }
