@@ -3,9 +3,47 @@
 const CANVAS_W   = 595;
 const CANVAS_H   = 380;
 const ZONE_SPLIT = 240;   // 0–240 = header zone, 240–380 = wine row zone
-const MARGIN_LEFT     = 88;
-const MARGIN_RIGHT     = 30;
+const MARGIN_LEFT     = 20;
+const MARGIN_RIGHT     = 20;
 const SNAP_PX    = 8;
+
+/* ─── Default template ───────────────────────────────────────────────── */
+
+function applyDefaultTemplate() {
+  // Remove all user-placed objects, keep decorations
+  canvas.getObjects('text')
+    .filter(o => !o.excludeFromExport)
+    .forEach(o => canvas.remove(o));
+  canvas.getObjects('line')
+    .filter(o => !o.excludeFromExport)
+    .forEach(o => canvas.remove(o));
+
+  const fields = [
+    { key: 'category', level: 1, left: MARGIN_LEFT,                   top: 24,             fontSize: 22, fontWeight: 'bold',   fontStyle: 'normal', fill: '#1e293b' },
+    { key: 'origin',   level: 2, left: MARGIN_LEFT,                   top: 90,             fontSize: 15, fontWeight: 'bold',   fontStyle: 'normal', fill: '#334155' },
+    { key: 'region',   level: 3, left: MARGIN_LEFT,                   top: 154,            fontSize: 12, fontWeight: 'normal', fontStyle: 'italic', fill: '#64748b' },
+    { key: 'wine',     level: 0, left: MARGIN_LEFT,                   top: ZONE_SPLIT + 40, fontSize: 13, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b' },
+    { key: 'vintage',  level: 0, left: 380,                           top: ZONE_SPLIT + 40, fontSize: 13, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b' },
+    { key: 'price',    level: 0, left: CANVAS_W - MARGIN_RIGHT - 60,  top: ZONE_SPLIT + 40, fontSize: 13, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b' },
+  ];
+
+  fields.forEach(f => {
+    canvas.add(new fabric.Text('{{' + f.key + '}}', {
+      left: f.left, top: f.top,
+      fontFamily: 'Arial', fontSize: f.fontSize,
+      fontWeight: f.fontWeight, fontStyle: f.fontStyle,
+      fill: f.fill, textAlign: 'left',
+      placeholderKey: f.key, headerLevel: f.level,
+      lockRotation: true, hasRotatingPoint: false,
+    }));
+  });
+
+  snapGuides.forEach(g => canvas.bringToFront(g));
+  canvas.bringToFront(lblHeader);
+  canvas.bringToFront(lblRow);
+  canvas.discardActiveObject();
+  canvas.renderAll();
+}
 
 /* ─── Custom font preload ────────────────────────────────────────────── */
 
@@ -75,6 +113,28 @@ const decorations = [zoneSep, lblHeader, lblRow, refCenterX, ...snapGuides];
 
 function hideSnapGuides() {
   snapGuides.forEach(g => g.set({ visible: false }));
+  clearDynGuides();
+}
+
+/* ─── Dynamic element-to-element snap guides ─────────────────────────── */
+
+let activeDynGuides = [];
+
+function clearDynGuides() {
+  activeDynGuides.forEach(g => canvas.remove(g));
+  activeDynGuides = [];
+}
+
+function addDynVGuide(x) {
+  const g = makeLine(x, 0, x, CANVAS_H, { stroke: '#10b981', strokeDashArray: [4, 4] });
+  canvas.add(g); canvas.bringToFront(g);
+  activeDynGuides.push(g);
+}
+
+function addDynHGuide(y) {
+  const g = makeLine(0, y, CANVAS_W, y, { stroke: '#10b981', strokeDashArray: [4, 4] });
+  canvas.add(g); canvas.bringToFront(g);
+  activeDynGuides.push(g);
 }
 
 /* ─── Add all decorations (called on init + after loadFromJSON) ─────── */
@@ -115,27 +175,100 @@ canvas.on('object:moving', function (e) {
   const ocy = oty + oh / 2;
   const oby = oty + oh;
 
-  // ── X-axis snaps ──────────────────────────────────────────────────
+  // ── X-axis fixed snaps ────────────────────────────────────────────
+  let snappedX = false;
   if (Math.abs(ol - MARGIN_LEFT) < SNAP_PX) {
     obj.set({ left: MARGIN_LEFT });
     snapLeft.set({ visible: true });
+    snappedX = true;
   } else if (Math.abs(ol + ow - (CANVAS_W - MARGIN_RIGHT)) < SNAP_PX) {
     obj.set({ left: CANVAS_W - MARGIN_RIGHT - ow });
     snapRight.set({ visible: true });
+    snappedX = true;
   } else if (Math.abs(ocx - CANVAS_W / 2) < SNAP_PX) {
     obj.set({ left: CANVAS_W / 2 - ow / 2 });
     snapCenterX.set({ visible: true });
+    snappedX = true;
   }
 
-  // ── Y-axis snaps (zone centres) ───────────────────────────────────
+  // ── Y-axis fixed snaps ────────────────────────────────────────────
+  let snappedY = false;
   if (Math.abs(ocy - hZoneMid) < SNAP_PX) {
     obj.set({ top: hZoneMid - oh / 2 });
     snapHMid.set({ visible: true });
-  }  else if (Math.abs(oby - ZONE_SPLIT) < SNAP_PX) {
+    snappedY = true;
+  } else if (Math.abs(oby - ZONE_SPLIT) < SNAP_PX) {
     obj.set({ top: ZONE_SPLIT - oh });
+    snappedY = true;
   } else if (Math.abs(ocy - rZoneMid) < SNAP_PX) {
     obj.set({ top: rZoneMid - oh / 2 });
     snapRMid.set({ visible: true });
+    snappedY = true;
+  }
+
+  // ── Element-to-element snaps ──────────────────────────────────────
+  const others = canvas.getObjects('text').filter(o => o !== obj && !o.excludeFromExport);
+
+  // Recompute positions after fixed snaps may have moved the object
+  const el  = obj.left;
+  const ecx = el + ow / 2;
+  const er  = el + ow;
+  const et  = obj.top;
+  const ecy = et + oh / 2;
+  const eb  = et + oh;
+
+  if (!snappedX) {
+    outer_x: for (const other of others) {
+      const ow2 = other.getScaledWidth();
+      const ol2 = other.left;
+      const snapXValues = [ol2, ol2 + ow2 / 2, ol2 + ow2];
+
+      for (const sx of snapXValues) {
+        if (Math.abs(el - sx) < SNAP_PX) {
+          obj.set({ left: sx });
+          addDynVGuide(sx);
+          snappedX = true;
+          break outer_x;
+        } else if (Math.abs(ecx - sx) < SNAP_PX) {
+          obj.set({ left: sx - ow / 2 });
+          addDynVGuide(sx);
+          snappedX = true;
+          break outer_x;
+        } else if (Math.abs(er - sx) < SNAP_PX) {
+          obj.set({ left: sx - ow });
+          addDynVGuide(sx);
+          snappedX = true;
+          break outer_x;
+        }
+      }
+    }
+  }
+
+  if (!snappedY) {
+    outer_y: for (const other of others) {
+      const oh2 = other.getScaledHeight();
+      const ot2 = other.top;
+      const snapYValues = [ot2, ot2 + oh2 / 2, ot2 + oh2];
+
+      for (const sy of snapYValues) {
+        if (Math.abs(et - sy) < SNAP_PX) {
+          obj.set({ top: sy });
+          addDynHGuide(sy);
+          snappedY = true;
+          break outer_y;
+        } else if (Math.abs(ecy - sy) < SNAP_PX) {
+          obj.set({ top: sy - oh / 2 });
+          addDynHGuide(sy);
+          snappedY = true;
+          break outer_y;
+        } else if (Math.abs(eb - sy) < SNAP_PX) {
+          obj.set({ top: sy - oh });
+          addDynHGuide(sy);
+          snappedY = true;
+          break outer_y;
+        }
+      }
+    }
   }
 
   canvas.renderAll();
@@ -281,6 +414,18 @@ document.addEventListener('keydown', e => {
   const tag = document.activeElement.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+});
+
+/* ─── Reset to default ───────────────────────────────────────────────── */
+
+document.getElementById('owm-btn-reset-default').addEventListener('click', function () {
+  if (!confirm('Reset the template to the default layout? This will overwrite your current template.')) return;
+
+  applyDefaultTemplate();
+
+  document.getElementById('owm_pdf_template_data').value =
+    JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel']));
+  document.getElementById('owm-pdf-template-form').submit();
 });
 
 /* ─── Save ───────────────────────────────────────────────────────────── */

@@ -14,6 +14,7 @@ class AdminSettings {
     public function __construct() {
         add_action('admin_menu',             [$this, 'add_menu_page']);
         add_action('admin_init',             [$this, 'register_settings']);
+        add_action('admin_init',             [$this, 'process_pdf_template_save']);
         add_action('admin_enqueue_scripts',  [$this, 'enqueue_admin_assets']);
         add_action('wp_ajax_owm_generate_pdf',      [$this, 'handle_generate_pdf']);
         add_action('admin_action_owm_download_pdf', [$this, 'handle_download_pdf_direct']);
@@ -276,16 +277,32 @@ jQuery(function($) {
         <?php
     }
 
+    public function process_pdf_template_save(): void {
+        if (!isset($_POST['owm_pdf_template']) || !check_admin_referer('owm_pdf_template_action')) {
+            return;
+        }
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $json_data = wp_unslash($_POST['owm_pdf_template']);
+        $decoded   = json_decode($json_data);
+        $status    = json_last_error() === JSON_ERROR_NONE ? 'saved' : 'error';
+
+        if ($status === 'saved') {
+            update_option('owm_pdf_template', wp_json_encode($decoded));
+        }
+
+        wp_redirect(add_query_arg(['page' => 'owm-pdf-template', 'template_status' => $status], admin_url('admin.php')));
+        exit;
+    }
+
     public function render_pdf_template_page(): void {
-        if (isset($_POST['owm_pdf_template']) && check_admin_referer('owm_pdf_template_action')) {
-            $json_data = wp_unslash($_POST['owm_pdf_template']);
-            $decoded   = json_decode($json_data);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                update_option('owm_pdf_template', wp_json_encode($decoded));
-                echo '<div class="notice notice-success is-dismissible"><p>Template saved.</p></div>';
-            } else {
-                echo '<div class="notice notice-error is-dismissible"><p>Invalid template data — please try again.</p></div>';
-            }
+        $status = $_GET['template_status'] ?? '';
+        if ($status === 'saved') {
+            echo '<div class="notice notice-success is-dismissible"><p>Template saved.</p></div>';
+        } elseif ($status === 'error') {
+            echo '<div class="notice notice-error is-dismissible"><p>Invalid template data — please try again.</p></div>';
         }
 
         $row_fields = WineFields::labels();
@@ -409,6 +426,9 @@ jQuery(function($) {
                         <input type="submit" class="button button-primary" value="Save Template">
                         <button type="button" id="owm-generate-pdf" class="button owm-btn-generate">
                             Download Wine List PDF
+                        </button>
+                        <button type="button" id="owm-btn-reset-default" class="button owm-btn-reset">
+                            Reset to Default
                         </button>
                         <span id="owm-pdf-status" class="owm-pdf-status"></span>
                     </div>

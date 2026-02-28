@@ -1,0 +1,35 @@
+Proprietary Software License Agreement
+
+Project Name: Octopus wine managment Plugin
+
+Developer: Wagner Development ÜO
+
+Licensee: Fakkelgaarden Aps
+
+Effective Date: February 28, 2026
+
+1. Grant of License
+
+The Developer grants the Licensee a non-exclusive, non-transferable, and revocable license to use the Software solely for internal business operations on the specific web domains agreed upon.
+
+2. Ownership & Intellectual Property
+
+The Developer (or Licensee, if "Work for Hire") retains all rights, titles, and interests in and to the Software, including all source code, documentation, and visual assets. This Software is protected by copyright laws and international copyright treaties.
+
+3. Restrictions (The "Lockdown" Clauses)
+
+The Licensee shall not, and shall not permit any third party to:
+
+    Redistribute: Sell, rent, lease, lend, redistribute, or sublicense the Software to any third party.
+
+    Reverse Engineer: Decompile, disassemble, or attempt to derive the source code for the purpose of creating a derivative or competing product.
+
+    Remove Notices: Remove or alter any copyright notices, watermarks, or proprietary legends contained within the Software.
+
+4. Confidentiality
+
+The Software contains valuable trade secrets and proprietary information. The Licensee agrees to hold the Software in confidence and take all reasonable steps to prevent unauthorized disclosure to third parties.
+
+5. Termination
+
+This license is effective until terminated. This license will terminate automatically if the Licensee fails to comply with any of the terms described herein. Upon termination, the Licensee must cease all use of the Software and destroy all copies in their possession.

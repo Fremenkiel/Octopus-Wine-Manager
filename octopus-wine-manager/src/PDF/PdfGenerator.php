@@ -3,7 +3,6 @@
 namespace OctopusWineManagment\PDF;
 
 use Mpdf\Mpdf;
-use OctopusWineManagment\WineFields;
 
 class PdfGenerator {
 
@@ -21,9 +20,8 @@ class PdfGenerator {
             $template_json = get_option('owm_pdf_template', '');
         }
         $template = $template_json ? json_decode($template_json, true) : null;
-        $parsed        = $this->extract_template($template);
-        $wines         = $this->get_all_wines();
-        $html          = $this->render_html($wines, $parsed['columns'], $parsed['headers']);
+        $parsed   = $this->extract_template($template);
+        $wines    = $this->get_all_wines();
 
         $upload_dir = wp_upload_dir();
         $temp_dir   = $upload_dir['basedir'] . '/owm-mpdf-tmp';
@@ -35,7 +33,7 @@ class PdfGenerator {
             'format'        => 'A4',
             'margin_left'   => 30,
             'margin_right'  => 10,
-            'margin_top'    => 12,
+            'margin_top'    => 22,
             'margin_bottom' => 30,
             'tempDir'       => $temp_dir,
             'fontDir'       => [$font_dir],
@@ -44,9 +42,34 @@ class PdfGenerator {
             ],
         ]);
 
+        // Register one named HTML header per category via the PHP API (more
+        // reliable than embedding <htmlpageheader> tags inside WriteHTML).
+        $h1_style = $this->header_css($parsed['headers'][1]);
+        foreach ($this->get_sorted_categories($wines) as $category) {
+            $mpdf->DefHTMLHeaderByName(
+                'cat_' . md5($category),
+                '<div style="padding:1mm 0;' . $h1_style . '">' . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . '</div>'
+            );
+        }
+
+        $html = $this->render_html($wines, $parsed['rows'], $parsed['headers']);
+
         $mpdf->SetTitle('Wine List');
         $mpdf->WriteHTML($html);
         $mpdf->Output('wine-list.pdf', \Mpdf\Output\Destination::DOWNLOAD);
+    }
+
+    private function get_sorted_categories(array $wines): array {
+        $categories  = array_values(array_unique(array_column($wines, 'category')));
+        $saved_order = json_decode(get_option('owm_type_order', '[]'), true) ?: [];
+        $order_map   = array_flip($saved_order);
+        usort($categories, function ($a, $b) use ($order_map) {
+            $ia = $order_map[$a] ?? PHP_INT_MAX;
+            $ib = $order_map[$b] ?? PHP_INT_MAX;
+            if ($ia !== $ib) return $ia <=> $ib;
+            return strcasecmp($a, $b);
+        });
+        return $categories;
     }
 
     // ── Data ─────────────────────────────────────────────────────────────
@@ -62,6 +85,11 @@ class PdfGenerator {
 
         $wines = [];
         foreach ($posts as $post) {
+            $stock = get_post_meta($post->ID, '_owm_quantity', true) ?: 0;
+            if ($stock < 1) {
+              continue;
+            }
+
             $country = get_post_meta($post->ID, '_owm_country_origin',     true) ?: 'N/A';
             $region = get_post_meta($post->ID, '_owm_region',             true) ?: '';
             $sub_region = get_post_meta($post->ID, '_owm_sub_region',         true) ?: '';
@@ -131,7 +159,7 @@ class PdfGenerator {
     // ── Template parsing ─────────────────────────────────────────────────
 
     /**
-     * Returns ['columns' => [...], 'headers' => [1 => [...], 2 => [...], 3 => [...]]]
+     * Returns ['rows' => [...], 'headers' => [1 => [...], 2 => [...], 3 => [...]]]
      */
     private function extract_template(?array $template): array {
         $default_columns = [
@@ -141,10 +169,10 @@ class PdfGenerator {
         ];
 
         if (!$template || empty($template['objects'])) {
-            return ['columns' => $default_columns, 'headers' => self::HEADER_DEFAULTS];
+            return ['rows' => $default_columns, 'headers' => self::HEADER_DEFAULTS];
         }
 
-        $columns = [];
+        $rows = [];
         $headers = self::HEADER_DEFAULTS; // start from defaults, override below
 
         foreach ($template['objects'] as $obj) {
@@ -154,6 +182,12 @@ class PdfGenerator {
 
             if ($level >= 1 && $level <= 3) {
                 // H1 / H2 / H3 — take its style, ignore x/y position
+                $x           =  (float) ($obj['left'] ?? 0);
+                $pct              = ($x - 20) > 0 ? ($x - 20) / self::CANVAS_WIDTH * 100 : 0;
+                $ml = max(round($pct, 1), 5) . '%';
+
+                $ta = $obj['textAlign']   ?? self::HEADER_DEFAULTS[$level]['textAlign'];
+
                 $headers[$level] = [
                     'fontSize'   => isset($obj['fontSize']) ? intval($obj['fontSize']) . 'px' : self::HEADER_DEFAULTS[$level]['fontSize'],
                     'fontFamily' => $obj['fontFamily'] ?? self::HEADER_DEFAULTS[$level]['fontFamily'],
@@ -161,12 +195,17 @@ class PdfGenerator {
                     'fontStyle'  => $obj['fontStyle']  ?? self::HEADER_DEFAULTS[$level]['fontStyle'],
                     'fill'       => $obj['fill']        ?? self::HEADER_DEFAULTS[$level]['fill'],
                     'textAlign'  => $obj['textAlign']   ?? self::HEADER_DEFAULTS[$level]['textAlign'],
+                    'x'          => $x,
+                    'y'          => (float) ($obj['top'] ?? 0),
+                    'marginLeft'=> $ta == 'center' ? 'unset' : $ml,
                 ];
             } else {
                 // Row field — x position defines column order, full style applied
-                $columns[] = [
+                $y = (float) ($obj['top'] ?? 0);
+                $rows[str_replace('.', '', (string) $y)][] = [
                     'key'        => $obj['placeholderKey'],
                     'x'          => (float) ($obj['left'] ?? 0),
+                    'y'          => $y,
                     'fontSize'   => (int)   ($obj['fontSize'] ?? 11),
                     'fontFamily' => $obj['fontFamily'] ?? 'Arial',
                     'fontWeight' => $obj['fontWeight'] ?? 'normal',
@@ -177,24 +216,27 @@ class PdfGenerator {
             }
         }
 
-        if (empty($columns)) {
-            $columns = $default_columns;
+        if (empty($rows)) {
+            $rows['0'] = $default_columns;
         } else {
-            usort($columns, fn($a, $b) => $a['x'] <=> $b['x']);
-            $count = count($columns);
-            for ($i = 0; $i < $count; $i++) {
-                $next_x           = ($i + 1 < $count) ? (float) $columns[$i + 1]['x'] : self::CANVAS_WIDTH;
-                $pct              = ($next_x - (float) $columns[$i]['x']) / self::CANVAS_WIDTH * 100;
-                $columns[$i]['width'] = max(round($pct, 1), 5) . '%';
+            foreach($rows as $key=>$row) {
+              usort($row, fn($a, $b) => $a['x'] <=> $b['x']);
+              $count = count($row);
+              for ($i = 0; $i < $count; $i++) {
+                $next_x           = ($i + 1 < $count) ? (float) $row[$i + 1]['x'] : self::CANVAS_WIDTH;
+                $pct              = ($next_x - (float) $row[$i]['x']) / self::CANVAS_WIDTH * 100;
+                $row[$i]['width'] = max(round($pct, 1), 5) . '%';
+              }
+              $rows[$key] = $row;
             }
         }
 
-        return ['columns' => $columns, 'headers' => $headers];
+        return ['rows' => $rows, 'headers' => $headers];
     }
 
     // ── Rendering ────────────────────────────────────────────────────────
 
-    private function render_html(array $wines, array $columns, array $headers): string {
+    private function render_html(array $wines, array $rows, array $headers): string {
         if (empty($wines)) {
             return '<html><body style="font-family:Arial;padding:40px"><p>No products found. Please sync from the API first.</p></body></html>';
         }
@@ -202,14 +244,18 @@ class PdfGenerator {
         // Build per-column CSS
         $col_styles = '';
 
-        foreach ($columns as $i => $col) {
+        foreach ($rows as $key => $row) {
+          foreach ($row as $i => $col) {
             $fs = isset($col['fontSize']) ? intval($col['fontSize']) . 'px' : '11px';
             $ff = $this->safe_font($col['fontFamily'] ?? 'Arial');
             $fw = ($col['fontWeight'] ?? '') === 'bold'   ? 'bold'   : 'normal';
             $fi = ($col['fontStyle']  ?? '') === 'italic' ? 'italic' : 'normal';
             $fc = $this->safe_color($col['fill'] ?? '#1e293b');
             $ta = in_array($col['textAlign'] ?? 'left', ['left', 'center', 'right']) ? $col['textAlign'] : 'left';
-            $col_styles .= ".col-{$i}{font-size:{$fs};font-family:{$ff};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};}\n";
+            $w  = $col['width'] ?? 'auto';
+            $mw = $col['key'] == 'price' ? 'min-width:124px;' : '';
+            $col_styles .= ".col-{$key}-{$i}{font-size:{$fs};font-family:{$ff};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};width:{$w};{$mw}}\n";
+          }
         }
 
         // Build header CSS from template styles
@@ -234,28 +280,52 @@ class PdfGenerator {
         });
 
         $body    = '';
-        $colspan = count($columns);
+        $coltemplate = [];
+        foreach($rows as $row) {
+          foreach($row as $col) {
+            if (!in_array((string) $col['x'], $coltemplate, true)) {
+              $coltemplate[] = (string) $col['x'];
+            }
+          }
+        }
+        ksort($coltemplate);
 
         foreach ($tree as $category => $by_country) {
             ksort($by_country);
 
-            // H1 — Wine type (only if user placed an H1 element OR there are multiple categories)
-            $body .= sprintf('<div class="pdf-h1">%s</div>', esc_html($category));
+            // H1 — Wine type; activate the matching named page header
+            $body .= sprintf('<sethtmlpageheader name="cat_%s" value="on" show-this-page="1"/>', md5($category));
+            // $body .= sprintf('<div class="pdf-h1">%s</div>', esc_html($category));
 
             foreach ($by_country as $country => $by_region) {
                 ksort($by_region);
 
-                // H2 — Country
-                $body .= sprintf('<div class="pdf-h2">%s</div>', esc_html($country));
-
                 $body .= '<table><tbody>';
+
+                // H2 — Country
+                // $body .= sprintf('<div class="pdf-h2">%s</div>', esc_html($country));
+                $body .= sprintf('<tr>');
+                $span = array_search($headers[2]['x'], $coltemplate);
+                if ($span !== 0) {
+                  $body .= sprintf('<td colspan="%d"></td>', $span);
+                }
+                $body .= sprintf(
+                    '<td colspan="%d" class="pdf-h2">%s</td></tr>',
+                    count($coltemplate) - $span,
+                    esc_html($country)
+                );
 
                 foreach ($by_region as $region => $region_wines) {
                     if ($region !== '__none__') {
                         // H3 — Region as a spanning table row
+                        $body .= sprintf('<tr>');
+                        $span = array_search($headers[3]['x'], $coltemplate);
+                        if ($span !== 0) {
+                          $body .= sprintf('<td colspan="%d"></td>', $span);
+                        }
                         $body .= sprintf(
-                            '<tr><td colspan="%d" class="pdf-h3">%s</td></tr>',
-                            $colspan,
+                            '<td colspan="%d" class="pdf-h3">%s</td></tr>',
+                            count($coltemplate) - $span,
                             esc_html($region)
                         );
                     }
@@ -270,12 +340,20 @@ class PdfGenerator {
                     });
 
                     foreach ($region_wines as $wine) {
-                        $body .= '<tr class="wine-row">';
-                        foreach ($columns as $i => $col) {
-                            $body .= sprintf('<td class="col-%d">%s</td>', $i,
+                        foreach ($rows as $key => $row) {
+                          $span = 1;
+                          
+                          $body .= '<tr class="wine-row">';
+                          foreach ($row as $i => $col) {
+                            $span = array_search($col['x'], $coltemplate);
+                            if ($span !== $i) {
+                              $body .= sprintf('<td colspan="%d"></td>', $span);
+                            }
+                            $body .= sprintf('<td class="col-%d-%d">%s</td>', $key, $i,
                                 esc_html($this->format_field($wine, $col['key'])));
+                          }
+                          $body .= '</tr>';
                         }
-                        $body .= '</tr>';
                     }
                 }
 
@@ -292,17 +370,17 @@ class PdfGenerator {
 body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
 
 /* H1 — Wine type (from template) */
-.pdf-h1 { {$h1_css} margin: 18px 0 4px; padding: 7px 10px; }
+.pdf-h1 { margin: 18px 0 4px; padding: 7px 8px; {$h1_css} }
 
 /* H2 — Country (from template) */
-.pdf-h2 { {$h2_css} padding: 5px 0 3px; margin: 6px 0 0; }
+.pdf-h2 { padding: 16px 8px 3px; {$h2_css} }
+
+/* H3 — Region as table section row (from template) */
+.pdf-h3 { padding: 4px 8px; {$h3_css} }
 
 /* Table */
 table { width: 100%; border-collapse: collapse; margin-bottom: 2px; }
 td { padding: 5px 8px; vertical-align: middle; }
-
-/* H3 — Region as table section row (from template) */
-.pdf-h3 { {$h3_css} padding: 4px 8px; }
 
 {$col_styles}
 </style>
@@ -323,13 +401,17 @@ HTML;
         $fi = $h['fontStyle']  ?? 'normal';
         $fc = $this->safe_color($h['fill'] ?? '#1e293b');
         $ta = in_array($h['textAlign'] ?? 'left', ['left', 'center', 'right']) ? $h['textAlign'] : 'left';
-        return "font-family:{$ff};font-size:{$fs};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};";
+        $ml = $h['marginLeft'] ?? 0;
+        
+        $css = "font-family:{$ff};font-size:{$fs};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};";
+        $css .= $ml === 'unset' ? '' : "margin-left:{$ml};";
+        return $css;
     }
 
     private function format_field(array $wine, string $key): string {
         $value = $wine[$key] ?? '';
         if ($key === 'price' && $value !== '') {
-            return number_format((float) $value, 2);
+            return number_format((float) $value, 2) . ' DKK';
         }
         return (string) $value;
     }
