@@ -256,7 +256,7 @@ class PdfGenerator {
             $ta = in_array($col['textAlign'] ?? 'left', ['left', 'center', 'right']) ? $col['textAlign'] : 'left';
             $w  = $col['width'] ?? 'auto';
             if ($col['key'] === 'price') {
-                $min_pct = round(245 / self::CANVAS_WIDTH * 100, 1);
+                $min_pct = round(124 / self::CANVAS_WIDTH * 100, 1);
                 if ((float) $w < $min_pct) {
                     $w = $min_pct . '%';
                 }
@@ -418,7 +418,8 @@ body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 
 
 /* Table */
 table { width: 100%; border-collapse: collapse; margin: 5px 0px; }
-td { padding: 0px 8px; vertical-align: middle; }
+td { vertical-align: middle; }
+.wine-row td { padding-top: 0; padding-bottom: 0; padding-left: 8px; padding-right: 8px; }
 
 {$col_styles}
 </style>
