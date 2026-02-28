@@ -300,34 +300,37 @@ class PdfGenerator {
             foreach ($by_country as $country => $by_region) {
                 ksort($by_region);
 
-                $body .= '<table><tbody>';
-
-                // H2 — Country
-                // $body .= sprintf('<div class="pdf-h2">%s</div>', esc_html($country));
-                $body .= sprintf('<tr>');
+                // H2 — Country (own table so wine tables can use page-break-inside: avoid)
                 $span = array_search($headers[2]['x'], $coltemplate);
+                $body .= '<table>';
+                $body .= '<tr>';
                 if ($span !== 0) {
-                  $body .= sprintf('<td colspan="%d"></td>', $span);
+                    $body .= sprintf('<td colspan="%d"></td>', $span);
                 }
                 $body .= sprintf(
-                    '<td colspan="%d" class="pdf-h2">%s</td></tr>',
+                    '<td colspan="%d" class="pdf-h2">%s</td>',
                     count($coltemplate) - $span,
                     esc_html($country)
                 );
+                $body .= '</tr>';
+                $body .= '</table>';
 
                 foreach ($by_region as $region => $region_wines) {
                     if ($region !== '__none__') {
-                        // H3 — Region as a spanning table row
-                        $body .= sprintf('<tr>');
+                        // H3 — Region (own table)
                         $span = array_search($headers[3]['x'], $coltemplate);
+                        $body .= '<table>';
+                        $body .= '<tr>';
                         if ($span !== 0) {
-                          $body .= sprintf('<td colspan="%d"></td>', $span);
+                            $body .= sprintf('<td colspan="%d"></td>', $span);
                         }
                         $body .= sprintf(
-                            '<td colspan="%d" class="pdf-h3">%s</td></tr>',
+                            '<td colspan="%d" class="pdf-h3">%s</td>',
                             count($coltemplate) - $span,
                             esc_html($region)
                         );
+                        $body .= '</tr>';
+                        $body .= '</table>';
                     }
 
                     // Sort wines within region: sub_region → commune → village → producer → name
@@ -340,24 +343,24 @@ class PdfGenerator {
                     });
 
                     foreach ($region_wines as $wine) {
+                        // Each wine is its own table — page-break-inside: avoid works
+                        // reliably on <table> in mPDF, unlike on <tbody>.
+                        $body .= '<table style="page-break-inside: avoid">';
                         foreach ($rows as $key => $row) {
-                          $span = 1;
-                          
-                          $body .= '<tr class="wine-row">';
-                          foreach ($row as $i => $col) {
-                            $span = array_search($col['x'], $coltemplate);
-                            if ($span !== $i) {
-                              $body .= sprintf('<td colspan="%d"></td>', $span);
+                            $body .= '<tr class="wine-row">';
+                            foreach ($row as $i => $col) {
+                                $span = array_search($col['x'], $coltemplate);
+                                if ($span !== $i) {
+                                    $body .= sprintf('<td colspan="%d"></td>', $span);
+                                }
+                                $body .= sprintf('<td class="col-%d-%d">%s</td>', $key, $i,
+                                    esc_html($this->format_field($wine, $col['key'])));
                             }
-                            $body .= sprintf('<td class="col-%d-%d">%s</td>', $key, $i,
-                                esc_html($this->format_field($wine, $col['key'])));
-                          }
-                          $body .= '</tr>';
+                            $body .= '</tr>';
                         }
+                        $body .= '</table>';
                     }
                 }
-
-                $body .= '</tbody></table>';
             }
         }
 
@@ -379,8 +382,8 @@ body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 
 .pdf-h3 { padding: 4px 8px; {$h3_css} }
 
 /* Table */
-table { width: 100%; border-collapse: collapse; margin-bottom: 2px; }
-td { padding: 5px 8px; vertical-align: middle; }
+table { width: 100%; border-collapse: collapse; margin: 5px 0px; }
+td { padding: 0px 8px; vertical-align: middle; }
 
 {$col_styles}
 </style>
