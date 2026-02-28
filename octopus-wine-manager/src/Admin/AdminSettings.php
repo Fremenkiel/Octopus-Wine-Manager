@@ -331,7 +331,7 @@ jQuery(function($) {
                                 <button type="button" class="owm-field-btn owm-field-btn-h1"
                                         onclick="addField('category', 'h1')">H1 &nbsp;Wine Type</button>
                                 <button type="button" class="owm-field-btn owm-field-btn-h2"
-                                        onclick="addField('origin', 'h2')">H2 &nbsp;Country</button>
+                                        onclick="addField('country', 'h2')">H2 &nbsp;Country</button>
                                 <button type="button" class="owm-field-btn owm-field-btn-h3"
                                         onclick="addField('region', 'h3')">H3 &nbsp;Region</button>
                             </div>

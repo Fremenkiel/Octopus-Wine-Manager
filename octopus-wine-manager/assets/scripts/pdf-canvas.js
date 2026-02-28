@@ -19,20 +19,21 @@ function applyDefaultTemplate() {
     .forEach(o => canvas.remove(o));
 
   const fields = [
-    { key: 'category', level: 1, left: MARGIN_LEFT,                   top: 24,             fontSize: 22, fontWeight: 'bold',   fontStyle: 'normal', fill: '#1e293b' },
-    { key: 'origin',   level: 2, left: MARGIN_LEFT,                   top: 90,             fontSize: 15, fontWeight: 'bold',   fontStyle: 'normal', fill: '#334155' },
-    { key: 'region',   level: 3, left: MARGIN_LEFT,                   top: 154,            fontSize: 12, fontWeight: 'normal', fontStyle: 'italic', fill: '#64748b' },
-    { key: 'wine',     level: 0, left: MARGIN_LEFT,                   top: ZONE_SPLIT + 40, fontSize: 13, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b' },
-    { key: 'vintage',  level: 0, left: 380,                           top: ZONE_SPLIT + 40, fontSize: 13, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b' },
-    { key: 'price',    level: 0, left: CANVAS_W - MARGIN_RIGHT - 60,  top: ZONE_SPLIT + 40, fontSize: 13, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b' },
+    { key: 'category', level: 1, left: 228.3,                   top: 24,             fontSize: 24, fontWeight: 'bold',   fontStyle: 'normal', fill: '#1e293b', textAlign: 'center' },
+    { key: 'country',   level: 2, left: 70,                   top: 90,             fontSize: 16, fontWeight: 'bold',   fontStyle: 'normal', fill: '#334155', textAlign: 'left' },
+    { key: 'region',   level: 3, left: 70,                   top: 154,            fontSize: 13, fontWeight: 'normal', fontStyle: 'italic', fill: '#64748b', textAlign: 'left' },
+    { key: 'wine',     level: 0, left: 70,                   top: 223.18, fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
+    { key: 'vintage',  level: 0, left: MARGIN_LEFT,                   top: 223.18, fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
+    { key: 'price',    level: 0, left: 527.45,  top: 223.18, fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'right' },
+    { key: 'origin',  level: 0, left: 70,  top: 261, fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
   ];
 
   fields.forEach(f => {
     canvas.add(new fabric.Text('{{' + f.key + '}}', {
       left: f.left, top: f.top,
-      fontFamily: 'Arial', fontSize: f.fontSize,
+      fontFamily: 'TW Cen MT', fontSize: f.fontSize,
       fontWeight: f.fontWeight, fontStyle: f.fontStyle,
-      fill: f.fill, textAlign: 'left',
+      fill: f.fill,
       placeholderKey: f.key, headerLevel: f.level,
       lockRotation: true, hasRotatingPoint: false,
     }));
@@ -77,7 +78,7 @@ function makeLabel(text, left, top, color) {
     left, top,
     fontSize:    8,
     fill:        color || '#94a3b8',
-    fontFamily:  'Arial',
+    fontFamily:  'TM Cen MT',
     fontWeight:  '700',
     selectable:  false,
     evented:     false,

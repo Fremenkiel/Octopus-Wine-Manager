@@ -34,7 +34,7 @@ class PdfGenerator {
             'margin_left'   => 30,
             'margin_right'  => 10,
             'margin_top'    => 22,
-            'margin_bottom' => 30,
+            'margin_bottom' => 22,
             'tempDir'       => $temp_dir,
             'fontDir'       => [$font_dir],
             'fontdata'      => [
@@ -255,8 +255,13 @@ class PdfGenerator {
             $fc = $this->safe_color($col['fill'] ?? '#1e293b');
             $ta = in_array($col['textAlign'] ?? 'left', ['left', 'center', 'right']) ? $col['textAlign'] : 'left';
             $w  = $col['width'] ?? 'auto';
-            $mw = $col['key'] == 'price' ? 'min-width:124px;' : '';
-            $col_styles .= ".col-{$key}-{$i}{font-size:{$fs};font-family:{$ff};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};width:{$w};{$mw}}\n";
+            if ($col['key'] === 'price') {
+                $min_pct = round(245 / self::CANVAS_WIDTH * 100, 1);
+                if ((float) $w < $min_pct) {
+                    $w = $min_pct . '%';
+                }
+            }
+            $col_styles .= ".col-{$key}-{$i}{font-size:{$fs};font-family:{$ff};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};width:{$w};}\n";
           }
         }
 
