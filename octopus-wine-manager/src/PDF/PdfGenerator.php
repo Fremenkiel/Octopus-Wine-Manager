@@ -42,8 +42,10 @@ class PdfGenerator {
             ],
         ]);
 
-        // Register one named HTML header per category via the PHP API (more
-        // reliable than embedding <htmlpageheader> tags inside WriteHTML).
+        // Register one named HTML header per category via the PHP API.
+        // The header activates from the page AFTER the category starts (no
+        // show-this-page), so the inline H1 div handles the opening page and
+        // subsequent pages get the running header — no duplication.
         $h1_style = $this->header_css($parsed['headers'][1]);
         foreach ($this->get_sorted_categories($wines) as $category) {
             $mpdf->DefHTMLHeaderByName(
@@ -293,33 +295,52 @@ class PdfGenerator {
         foreach ($tree as $category => $by_country) {
             ksort($by_country);
 
-            // H1 — Wine type; activate the matching named page header
-            $body .= sprintf('<sethtmlpageheader name="cat_%s" value="on" show-this-page="1"/>', md5($category));
-            // $body .= sprintf('<div class="pdf-h1">%s</div>', esc_html($category));
+            // Activate running page header for this category (takes effect from
+            // the next page break, so no duplication with the inline H1 below).
+            $body .= sprintf('<sethtmlpageheader name="cat_%s" value="on"/>', md5($category));
+            // H1 — shown inline where the category section starts
+            $body .= sprintf('<div class="pdf-h1">%s</div>', esc_html($category));
 
             foreach ($by_country as $country => $by_region) {
                 ksort($by_region);
 
-                // H2 — Country (own table so wine tables can use page-break-inside: avoid)
-                $span = array_search($headers[2]['x'], $coltemplate);
-                $body .= '<table>';
-                $body .= '<tr>';
-                if ($span !== 0) {
-                    $body .= sprintf('<td colspan="%d"></td>', $span);
-                }
-                $body .= sprintf(
-                    '<td colspan="%d" class="pdf-h2">%s</td>',
-                    count($coltemplate) - $span,
-                    esc_html($country)
-                );
-                $body .= '</tr>';
-                $body .= '</table>';
+                $is_first_region = true;
 
                 foreach ($by_region as $region => $region_wines) {
+                    // Sort wines within region: sub_region → commune → village → producer → name
+                    usort($region_wines, function ($a, $b) {
+                        foreach (['sub_region', 'commune', 'village', 'producer'] as $key) {
+                            $cmp = strcasecmp($a[$key] ?? '', $b[$key] ?? '');
+                            if ($cmp !== 0) return $cmp;
+                        }
+                        return strcasecmp($a['name'], $b['name']);
+                    });
+
+                    // Pull out the first wine so it can be anchored to the headers
+                    // in a single page-break-inside:avoid table. This prevents headers
+                    // from appearing alone at the bottom of a page.
+                    $first_wine = array_shift($region_wines);
+
+                    $body .= '<table style="page-break-inside: avoid">';
+
+                    if ($is_first_region) {
+                        // H2 — Country header row
+                        $span = array_search($headers[2]['x'], $coltemplate);
+                        $body .= '<tr>';
+                        if ($span !== 0) {
+                            $body .= sprintf('<td colspan="%d"></td>', $span);
+                        }
+                        $body .= sprintf(
+                            '<td colspan="%d" class="pdf-h2">%s</td>',
+                            count($coltemplate) - $span,
+                            esc_html($country)
+                        );
+                        $body .= '</tr>';
+                    }
+
                     if ($region !== '__none__') {
-                        // H3 — Region (own table)
+                        // H3 — Region header row
                         $span = array_search($headers[3]['x'], $coltemplate);
-                        $body .= '<table>';
                         $body .= '<tr>';
                         if ($span !== 0) {
                             $body .= sprintf('<td colspan="%d"></td>', $span);
@@ -330,21 +351,28 @@ class PdfGenerator {
                             esc_html($region)
                         );
                         $body .= '</tr>';
-                        $body .= '</table>';
                     }
 
-                    // Sort wines within region: sub_region → commune → village → producer → name
-                    usort($region_wines, function ($a, $b) {
-                        foreach (['sub_region', 'commune', 'village', 'producer'] as $key) {
-                            $cmp = strcasecmp($a[$key] ?? '', $b[$key] ?? '');
-                            if ($cmp !== 0) return $cmp;
+                    // First wine row(s) — anchors headers to real content
+                    if ($first_wine) {
+                        foreach ($rows as $key => $row) {
+                            $body .= '<tr class="wine-row">';
+                            foreach ($row as $i => $col) {
+                                $span = array_search($col['x'], $coltemplate);
+                                if ($span !== $i) {
+                                    $body .= sprintf('<td colspan="%d"></td>', $span);
+                                }
+                                $body .= sprintf('<td class="col-%d-%d">%s</td>', $key, $i,
+                                    esc_html($this->format_field($first_wine, $col['key'])));
+                            }
+                            $body .= '</tr>';
                         }
-                        return strcasecmp($a['name'], $b['name']);
-                    });
+                    }
 
+                    $body .= '</table>';
+
+                    // Remaining wines — each in its own page-break-inside: avoid table
                     foreach ($region_wines as $wine) {
-                        // Each wine is its own table — page-break-inside: avoid works
-                        // reliably on <table> in mPDF, unlike on <tbody>.
                         $body .= '<table style="page-break-inside: avoid">';
                         foreach ($rows as $key => $row) {
                             $body .= '<tr class="wine-row">';
@@ -360,6 +388,8 @@ class PdfGenerator {
                         }
                         $body .= '</table>';
                     }
+
+                    $is_first_region = false;
                 }
             }
         }
@@ -373,7 +403,7 @@ class PdfGenerator {
 body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
 
 /* H1 — Wine type (from template) */
-.pdf-h1 { margin: 18px 0 4px; padding: 7px 8px; {$h1_css} }
+.pdf-h1 { margin: 18px 0 4px; padding: 7px 8px; page-break-after: avoid; {$h1_css} }
 
 /* H2 — Country (from template) */
 .pdf-h2 { padding: 16px 8px 3px; {$h2_css} }
