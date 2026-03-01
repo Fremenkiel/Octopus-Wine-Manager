@@ -243,28 +243,6 @@ class PdfGenerator {
             return '<html><body style="font-family:Arial;padding:40px"><p>No products found. Please sync from the API first.</p></body></html>';
         }
 
-        // Build per-column CSS
-        $col_styles = '';
-
-        foreach ($rows as $key => $row) {
-          foreach ($row as $i => $col) {
-            $fs = isset($col['fontSize']) ? intval($col['fontSize']) . 'px' : '11px';
-            $ff = $this->safe_font($col['fontFamily'] ?? 'Arial');
-            $fw = ($col['fontWeight'] ?? '') === 'bold'   ? 'bold'   : 'normal';
-            $fi = ($col['fontStyle']  ?? '') === 'italic' ? 'italic' : 'normal';
-            $fc = $this->safe_color($col['fill'] ?? '#1e293b');
-            $ta = in_array($col['textAlign'] ?? 'left', ['left', 'center', 'right']) ? $col['textAlign'] : 'left';
-            $w  = $col['width'] ?? 'auto';
-            if ($col['key'] === 'price') {
-                $min_pct = round(124 / self::CANVAS_WIDTH * 100, 1);
-                if ((float) $w < $min_pct) {
-                    $w = $min_pct . '%';
-                }
-            }
-            $col_styles .= ".col-{$key}-{$i}{font-size:{$fs};font-family:{$ff};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};width:{$w};}\n";
-          }
-        }
-
         // Build header CSS from template styles
         $h1_css = $this->header_css($headers[1]);
         $h2_css = $this->header_css($headers[2]);
@@ -297,14 +275,23 @@ class PdfGenerator {
         }
         ksort($coltemplate);
 
+        $first_category = true;
         foreach ($tree as $category => $by_country) {
             ksort($by_country);
 
-            // Activate running page header for this category (takes effect from
-            // the next page break, so no duplication with the inline H1 below).
-            $body .= sprintf('<sethtmlpageheader name="cat_%s" value="on"/>', md5($category));
-            // H1 — shown inline where the category section starts
+            // Turn off the running header BEFORE the page break so the new
+            // page is created with no header active — preventing the previous
+            // category's title from printing at the top of the new page.
+            $body .= '<sethtmlpageheader value="off"/>';
+
+            if (!$first_category) {
+                $body .= '<pagebreak />';
+            }
+            $first_category = false;
             $body .= sprintf('<div class="pdf-h1">%s</div>', esc_html($category));
+            // Activate running header after the inline H1 so it only repeats
+            // on continuation pages, never on the same page as the H1.
+            $body .= sprintf('<sethtmlpageheader name="cat_%s" value="on"/>', md5($category));
 
             foreach ($by_country as $country => $by_region) {
                 ksort($by_region);
@@ -312,85 +299,70 @@ class PdfGenerator {
                 $is_first_region = true;
 
                 foreach ($by_region as $region => $region_wines) {
-                    // Sort wines within region: sub_region → commune → village → producer → name
                     usort($region_wines, function ($a, $b) {
-                        foreach (['sub_region', 'commune', 'village', 'producer'] as $key) {
+                        foreach (['producer', 'sub_region', 'commune', 'village', 'volume'] as $key) {
                             $cmp = strcasecmp($a[$key] ?? '', $b[$key] ?? '');
                             if ($cmp !== 0) return $cmp;
                         }
                         return strcasecmp($a['name'], $b['name']);
                     });
 
-                    // Pull out the first wine so it can be anchored to the headers
-                    // in a single page-break-inside:avoid table. This prevents headers
-                    // from appearing alone at the bottom of a page.
-                    $first_wine = array_shift($region_wines);
+                    // H2/H3 headers and the first wine of each region are merged
+                    // into one page-break-inside:avoid table so the headers can
+                    // never be stranded alone at the bottom of a page.
+                    $ncols = max(count($coltemplate), 1);
 
-                    $body .= '<table style="page-break-inside: avoid">';
-
-                    if ($is_first_region) {
-                        // H2 — Country header row
-                        $span = array_search($headers[2]['x'], $coltemplate);
-                        $body .= '<tr>';
-                        if ($span !== 0) {
-                            $body .= sprintf('<td colspan="%d"></td>', $span);
-                        }
-                        $body .= sprintf(
-                            '<td colspan="%d" class="pdf-h2">%s</td>',
-                            count($coltemplate) - $span,
-                            esc_html($country)
-                        );
-                        $body .= '</tr>';
-                    }
-
-                    if ($region !== '__none__') {
-                        // H3 — Region header row
-                        $span = array_search($headers[3]['x'], $coltemplate);
-                        $body .= '<tr>';
-                        if ($span !== 0) {
-                            $body .= sprintf('<td colspan="%d"></td>', $span);
-                        }
-                        $body .= sprintf(
-                            '<td colspan="%d" class="pdf-h3">%s</td>',
-                            count($coltemplate) - $span,
-                            esc_html($region)
-                        );
-                        $body .= '</tr>';
-                    }
-
-                    // First wine row(s) — anchors headers to real content
-                    if ($first_wine) {
+                    foreach ($region_wines as $wine_idx => $wine) {
+                        // Build the wine's <tr> rows first so we can embed them
+                        // in either the header table or a standalone table.
+                        $wine_rows = '';
                         foreach ($rows as $key => $row) {
-                            $body .= '<tr class="wine-row">';
+                            $wine_rows .= '<tr>';
                             foreach ($row as $i => $col) {
+                                $fs = isset($col['fontSize']) ? intval($col['fontSize']) . 'px' : '11px';
+                                $ff = $this->safe_font($col['fontFamily'] ?? 'Arial');
+                                $fw = ($col['fontWeight'] ?? '') === 'bold'   ? 'bold'   : 'normal';
+                                $fi = ($col['fontStyle']  ?? '') === 'italic' ? 'italic' : 'normal';
+                                $fc = $this->safe_color($col['fill'] ?? '#1e293b');
+                                $ta = in_array($col['textAlign'] ?? 'left', ['left', 'center', 'right']) ? ($col['textAlign'] ?? 'left') : 'left';
+                                $w  = $col['width'] ?? 'auto';
+                                if ($col['key'] === 'price') {
+                                    $min_pct = round(124 / self::CANVAS_WIDTH * 100, 1);
+                                    if ((float) $w < $min_pct) {
+                                        $w = $min_pct . '%';
+                                    }
+                                }
                                 $span = array_search($col['x'], $coltemplate);
                                 if ($span !== $i) {
-                                    $body .= sprintf('<td colspan="%d"></td>', $span);
+                                    $wine_rows .= sprintf('<td colspan="%d"></td>', $span);
                                 }
-                                $body .= sprintf('<td class="col-%d-%d">%s</td>', $key, $i,
-                                    esc_html($this->format_field($first_wine, $col['key'])));
+                                $wine_rows .= sprintf(
+                                    '<td style="font-size:%s;font-family:%s;font-weight:%s;font-style:%s;color:%s;text-align:%s;width:%s;padding:0 8px;vertical-align:middle;">%s</td>',
+                                    $fs, $ff, $fw, $fi, $fc, $ta, $w,
+                                    esc_html($this->format_field($wine, $col['key']))
+                                );
                             }
-                            $body .= '</tr>';
+                            $wine_rows .= '</tr>';
                         }
-                    }
 
-                    $body .= '</table>';
+                        $body .= '<table style="page-break-inside:avoid;">';
 
-                    // Remaining wines — each in its own page-break-inside: avoid table
-                    foreach ($region_wines as $wine) {
-                        $body .= '<table style="page-break-inside: avoid">';
-                        foreach ($rows as $key => $row) {
-                            $body .= '<tr class="wine-row">';
-                            foreach ($row as $i => $col) {
-                                $span = array_search($col['x'], $coltemplate);
-                                if ($span !== $i) {
-                                    $body .= sprintf('<td colspan="%d"></td>', $span);
-                                }
-                                $body .= sprintf('<td class="col-%d-%d">%s</td>', $key, $i,
-                                    esc_html($this->format_field($wine, $col['key'])));
+                        if ($wine_idx === 0) {
+                            if ($is_first_region) {
+                                $body .= sprintf(
+                                    '<tr><td colspan="%d" style="padding:16px 8px 3px;%s">%s</td></tr>',
+                                    $ncols, $h2_css, esc_html($country)
+                                );
                             }
-                            $body .= '</tr>';
+                            if ($region !== '__none__') {
+                                $body .= sprintf(
+                                    '<tr><td colspan="%d" style="padding:4px 8px;%s">%s</td></tr>',
+                                    $ncols, $h3_css, esc_html($region)
+                                );
+                            }
                         }
+
+                        $body .= $wine_rows;
                         $body .= '</table>';
                     }
 
@@ -410,18 +382,8 @@ body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 
 /* H1 — Wine type (from template) */
 .pdf-h1 { margin: 18px 0 4px; padding: 7px 8px; page-break-after: avoid; {$h1_css} }
 
-/* H2 — Country (from template) */
-.pdf-h2 { padding: 16px 8px 3px; {$h2_css} }
-
-/* H3 — Region as table section row (from template) */
-.pdf-h3 { padding: 4px 8px; {$h3_css} }
-
 /* Table */
-table { width: 100%; border-collapse: collapse; margin: 5px 0px; }
-td { vertical-align: middle; }
-.wine-row td { padding-top: 0; padding-bottom: 0; padding-left: 8px; padding-right: 8px; }
-
-{$col_styles}
+table { width: 100%; border-collapse: collapse; margin: 5px 0; }
 </style>
 </head>
 <body>
