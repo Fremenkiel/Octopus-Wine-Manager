@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
 @font-face {
     font-family: 'TW Cen MT';
     src: url('../fonts/tw-cen-mt-regular.ttf') format('truetype');
@@ -5,110 +7,403 @@
     font-style: normal;
 }
 
-/* Container styling */
+/* ── Root variables scoped to our wrap ─────────────────────────────── */
+
 .owm-settings-wrap {
-    max-width: 800px;
-    margin: 20px 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    --owm-font:     'DM Sans', -apple-system, sans-serif;
+    --owm-bg:       #f7f5f2;
+    --owm-surface:  #ffffff;
+    --owm-border:   #e8e3db;
+    --owm-text:     #1c1a17;
+    --owm-muted:    #6b6356;
+    --owm-subtle:   #a8a09a;
+    --owm-green:    #16a34a;
+    --owm-red:      #dc2626;
+    --owm-radius:   8px;
+    --owm-shadow:   0 1px 3px rgba(28,26,23,.07);
+
+    font-family: var(--owm-font);
+    color: var(--owm-text);
+    max-width: 860px;
+    margin: 24px 0;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* Card-style sections */
-.owm-settings-wrap .form-table {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    margin-bottom: 24px;
+/* ── Page header ────────────────────────────────────────────────────── */
+
+.owm-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--owm-border);
+    margin-bottom: 0;
 }
 
-/* Header typography */
-.owm-settings-wrap h1 {
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 24px;
+.owm-page-title {
+    font-size: 20px !important;
+    font-weight: 600 !important;
+    color: var(--owm-text) !important;
+    letter-spacing: -0.3px;
+    margin: 0 0 3px !important;
+    line-height: 1.2 !important;
+    font-family: var(--owm-font) !important;
 }
 
-.owm-settings-wrap h2 {
-    font-size: 1.1rem;
-    color: #475569;
-    margin: 32px 0 12px;
+.owm-page-subtitle {
+    font-size: 13px;
+    color: var(--owm-muted);
+    margin: 0;
+    font-weight: 400;
 }
 
-/* Form Layout fixes */
-.owm-settings-wrap th {
-    padding: 20px 10px;
-    width: 200px;
-    color: #64748b;
+/* Status badges */
+
+.owm-status-group {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.owm-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--owm-surface);
+    border: 1px solid var(--owm-border);
+    border-radius: 20px;
+    padding: 5px 12px 5px 8px;
+    font-size: 12px;
+    color: var(--owm-muted);
+    white-space: nowrap;
+    box-shadow: var(--owm-shadow);
+}
+
+.owm-status-chip strong {
     font-weight: 500;
+    color: var(--owm-text);
+    font-size: 12px;
 }
 
-/* Modern Input styling */
-.owm-settings-wrap input[type="text"],
-.owm-settings-wrap input[type="password"],
-.owm-settings-wrap select {
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    padding: 8px 12px;
-    transition: all 0.2s ease;
+.owm-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.owm-dot--ok   { background: var(--owm-green); box-shadow: 0 0 0 2px rgba(22,163,74,.15); }
+.owm-dot--idle { background: #d6d0c8; }
+
+/* ── Cards ──────────────────────────────────────────────────────────── */
+
+.owm-card {
+    display: grid;
+    grid-template-columns: 168px 1fr;
+    gap: 0 48px;
+    padding: 32px 0;
+    border-bottom: 1px solid var(--owm-border);
+}
+
+.owm-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--owm-subtle);
+    padding-top: 5px;
+    line-height: 1.4;
+}
+
+.owm-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.owm-card-desc {
+    font-size: 13px;
+    color: var(--owm-muted);
+    margin: 0;
+    line-height: 1.55;
+}
+
+.owm-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+
+.owm-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 16px;
+    height: 36px;
+    border-radius: var(--owm-radius);
+    font-family: var(--owm-font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+    line-height: 1;
+    letter-spacing: -0.1px;
+}
+
+.owm-btn--dark {
+    background: var(--owm-text);
+    color: #fff;
+    border-color: var(--owm-text);
+}
+.owm-btn--dark:hover {
+    background: #2e2b26;
+    color: #fff;
+    text-decoration: none;
+}
+
+.owm-btn--ghost {
+    background: var(--owm-surface);
+    color: var(--owm-muted);
+    border-color: var(--owm-border);
+    box-shadow: var(--owm-shadow);
+}
+.owm-btn--ghost:hover {
+    color: var(--owm-text);
+    border-color: #ccc8bf;
+    background: var(--owm-surface);
+}
+
+.owm-btn--danger {
+    background: var(--owm-surface);
+    color: var(--owm-red);
+    border-color: #fecaca;
+}
+.owm-btn--danger:hover {
+    background: #fff5f5;
+    border-color: #fca5a5;
+}
+
+.owm-text-link {
+    font-size: 13px;
+    color: var(--owm-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+.owm-text-link:hover {
+    color: var(--owm-text);
+    text-decoration: none;
+}
+
+/* ── Settings form — override WordPress form-table ──────────────────── */
+
+.owm-form .form-table,
+.owm-form .form-table tbody,
+.owm-form .form-table tr {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
     box-shadow: none;
+    padding: 0;
+    margin: 0;
 }
 
-.owm-settings-wrap input:focus,
-.owm-settings-wrap select:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+.owm-form .form-table th,
+.owm-form .form-table td {
+    display: block;
+    padding: 0;
+    width: auto;
+    border: none;
+}
+
+.owm-form .form-table th {
+    padding-bottom: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--owm-text);
+    font-family: var(--owm-font);
+}
+
+.owm-form .form-table td {
+    padding-bottom: 20px;
+}
+
+/* Section h2 from do_settings_sections */
+.owm-form > h2,
+.owm-form h2 {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--owm-subtle) !important;
+    margin: 24px 0 14px !important;
+    padding: 0 0 10px 0 !important;
+    border-bottom: 1px solid var(--owm-border) !important;
+    font-family: var(--owm-font) !important;
+}
+
+.owm-form > h2:first-child {
+    margin-top: 0 !important;
+}
+
+/* Inputs — scoped only to the settings form to avoid touching the PDF toolbar */
+.owm-form input[type="text"],
+.owm-form input[type="password"],
+.owm-form select {
+    width: 100%;
+    max-width: 360px;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--owm-border);
+    border-radius: var(--owm-radius);
+    font-family: var(--owm-font);
+    font-size: 13px;
+    color: var(--owm-text);
+    background: var(--owm-surface);
+    box-shadow: var(--owm-shadow);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+}
+
+.owm-form input:focus,
+.owm-form select:focus {
+    border-color: #9b9590;
+    box-shadow: 0 0 0 3px rgba(28,26,23,.06);
     outline: none;
 }
 
-/* Primary Button (Save) */
+/* Submit button from submit_button() — override WP styles */
+.owm-form p.submit {
+    padding: 0;
+    margin: 8px 0 0;
+}
+
+.owm-form .button-primary,
 .owm-settings-wrap .button-primary {
-    background: #2563eb !important;
-    border: none !important;
-    padding: 0 20px !important;
-    height: 40px !important;
-    line-height: 40px !important;
-    border-radius: 6px !important;
-    font-weight: 600 !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    font-family: var(--owm-font) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    background: var(--owm-text) !important;
+    color: #fff !important;
+    border-color: var(--owm-text) !important;
+    border-radius: var(--owm-radius) !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    padding: 0 16px !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    transition: background 0.15s !important;
+    letter-spacing: -0.1px !important;
+}
+.owm-form .button-primary:hover,
+.owm-settings-wrap .button-primary:hover {
+    background: #2e2b26 !important;
+    border-color: #2e2b26 !important;
 }
 
-/* Secondary Button (Sync) */
-.owm-settings-wrap .button-secondary {
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-    color: #475569 !important;
-    padding: 0 20px !important;
-    height: 40px !important;
-    line-height: 40px !important;
-    border-radius: 6px !important;
+/* ── Sync form ──────────────────────────────────────────────────────── */
+
+.owm-sync-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
-.owm-settings-wrap .button:hover {
-    transform: translateY(-1px);
+.owm-sync-form .owm-btn {
+    font-family: var(--owm-font);
 }
 
-/* Sync Info Banner */
-.owm-sync-status {
-    background: #f0f9ff;
-    border-left: 4px solid #0ea5e9;
-    padding: 15px;
-    border-radius: 0 6px 6px 0;
-    margin: 20px 0;
+/* ── Wine type order list ────────────────────────────────────────────── */
+
+#owm-type-order-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
-/* ── PDF Template Editor ─────────────────────────────────────────────── */
+#owm-type-order-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--owm-surface);
+    border: 1px solid var(--owm-border);
+    border-radius: var(--owm-radius);
+    font-size: 13px;
+    color: var(--owm-text);
+    cursor: grab;
+    box-shadow: var(--owm-shadow);
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+#owm-type-order-list li:hover {
+    border-color: #ccc8bf;
+    box-shadow: 0 2px 6px rgba(28,26,23,.1);
+}
+
+#owm-type-order-list li:active {
+    cursor: grabbing;
+}
+
+.owm-drag-handle {
+    color: var(--owm-subtle);
+    font-size: 14px;
+    line-height: 1;
+    cursor: grab;
+    user-select: none;
+}
+
+.owm-sort-placeholder {
+    border: 1px dashed var(--owm-border) !important;
+    background: var(--owm-bg) !important;
+    border-radius: var(--owm-radius);
+    height: 40px;
+    box-shadow: none !important;
+}
+
+.owm-field-note {
+    font-size: 12px;
+    color: var(--owm-subtle);
+    margin: 10px 0 0;
+}
+
+/* ── WordPress notice overrides ─────────────────────────────────────── */
+
+.owm-settings-wrap ~ .notice,
+.notice.owm-notice {
+    border-radius: var(--owm-radius);
+    border-left-width: 3px;
+    font-family: var(--owm-font);
+    font-size: 13px;
+}
+
+/* ── PDF Template Page ──────────────────────────────────────────────── */
 
 .owm-pdf-wrap {
-    max-width: 700px;
+    max-width: 720px;
 }
 
 .owm-pdf-editor {
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    background: var(--owm-surface);
+    border: 1px solid var(--owm-border);
+    border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    margin-top: 16px;
+    box-shadow: 0 2px 8px rgba(28,26,23,.06);
+    margin-top: 20px;
 }
 
 /* Field Palette */
@@ -116,85 +411,95 @@
     display: flex;
     align-items: flex-start;
     flex-wrap: wrap;
-    gap: 0;
+    background: var(--owm-bg);
+    border-bottom: 1px solid var(--owm-border);
     padding: 0;
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
+    gap: 0;
 }
 
 .owm-palette-section {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 5px;
     padding: 10px 14px;
+}
+
+.owm-field-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
 }
 
 .owm-palette-divider {
     width: 1px;
     align-self: stretch;
-    background: #e2e8f0;
+    background: var(--owm-border);
     margin: 8px 0;
 }
 
 .owm-palette-label {
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #94a3b8;
-    margin-right: 4px;
+    letter-spacing: 0.07em;
+    color: var(--owm-subtle);
+    margin-right: 6px;
     white-space: nowrap;
+    font-family: var(--owm-font);
 }
 
 .owm-field-btn {
-    background: #e0f2fe;
-    border: 1px solid #bae6fd;
-    color: #0369a1;
-    border-radius: 4px;
+    font-family: var(--owm-font);
+    background: var(--owm-surface);
+    border: 1px solid var(--owm-border);
+    color: var(--owm-muted);
+    border-radius: 5px;
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-    line-height: 1.4;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    line-height: 1.5;
+    box-shadow: var(--owm-shadow);
 }
 
 .owm-field-btn:hover {
-    background: #bae6fd;
-    border-color: #7dd3fc;
+    background: #edeae5;
+    border-color: #ccc8bf;
+    color: var(--owm-text);
 }
 
-/* H1/H2/H3 header buttons styled to hint at their level */
 .owm-field-btn-h1 {
-    background: #1e293b;
-    border-color: #1e293b;
-    color: #fff;
-    font-weight: 700;
-    font-size: 13px;
-}
-.owm-field-btn-h1:hover { background: #334155; border-color: #334155; color: #fff; }
-
-.owm-field-btn-h2 {
-    background: #475569;
-    border-color: #475569;
+    background: var(--owm-text);
+    border-color: var(--owm-text);
     color: #fff;
     font-weight: 600;
+    font-size: 13px;
 }
-.owm-field-btn-h2:hover { background: #64748b; border-color: #64748b; color: #fff; }
+.owm-field-btn-h1:hover { background: #2e2b26; border-color: #2e2b26; color: #fff; }
+
+.owm-field-btn-h2 {
+    background: #4a4640;
+    border-color: #4a4640;
+    color: #fff;
+    font-weight: 500;
+}
+.owm-field-btn-h2:hover { background: #5a5550; border-color: #5a5550; color: #fff; }
 
 .owm-field-btn-h3 {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-    color: #475569;
+    background: var(--owm-surface);
+    border-color: var(--owm-border);
+    color: var(--owm-muted);
     font-style: italic;
 }
-.owm-field-btn-h3:hover { background: #e2e8f0; border-color: #94a3b8; }
+.owm-field-btn-h3:hover { background: #edeae5; border-color: #ccc8bf; }
 
 /* Formatting Toolbar */
 .owm-toolbar {
-    border-bottom: 1px solid #e2e8f0;
-    background: #fff;
+    border-bottom: 1px solid var(--owm-border);
+    background: var(--owm-surface);
     min-height: 44px;
     display: flex;
     align-items: center;
@@ -211,7 +516,7 @@
 }
 
 .owm-toolbar.idle .owm-toolbar-inner {
-    opacity: 0.1;
+    opacity: 0.12;
     pointer-events: none;
 }
 
@@ -221,15 +526,14 @@
     right: 0;
     text-align: center;
     font-size: 12px;
-    color: #646970;
+    color: var(--owm-subtle);
+    font-family: var(--owm-font);
     pointer-events: none;
     transition: opacity 0.15s;
     opacity: 0;
 }
 
-.owm-toolbar.idle .owm-toolbar-idle-hint {
-    opacity: 1;
-}
+.owm-toolbar.idle .owm-toolbar-idle-hint { opacity: 1; }
 
 .owm-toolbar-group {
     display: flex;
@@ -241,34 +545,41 @@
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #94a3b8;
+    letter-spacing: 0.06em;
+    color: var(--owm-subtle);
     white-space: nowrap;
+    font-family: var(--owm-font);
 }
 
 .owm-toolbar select {
+    font-family: var(--owm-font);
     padding: 3px 6px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
+    border: 1px solid var(--owm-border);
+    border-radius: 5px;
     font-size: 12px;
     height: 28px;
-    background: #fff;
+    width: auto;
+    max-width: none;
+    background: var(--owm-surface);
+    color: var(--owm-text);
+    box-shadow: var(--owm-shadow);
 }
 
 .owm-toolbar input[type="color"] {
     width: 28px;
     height: 28px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
+    border: 1px solid var(--owm-border);
+    border-radius: 5px;
     padding: 2px;
     cursor: pointer;
-    background: #fff;
+    background: var(--owm-surface);
+    box-shadow: var(--owm-shadow);
 }
 
 .owm-toolbar-sep {
     width: 1px;
     height: 20px;
-    background: #e2e8f0;
+    background: var(--owm-border);
     margin: 0 4px;
     flex-shrink: 0;
 }
@@ -276,118 +587,133 @@
 .owm-icon-btn {
     width: 28px;
     height: 28px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
-    background: #f8fafc;
+    border: 1px solid var(--owm-border);
+    border-radius: 5px;
+    background: var(--owm-surface);
     cursor: pointer;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
     line-height: 1;
-    color: #374151;
+    color: var(--owm-muted);
+    font-family: var(--owm-font);
     transition: background 0.12s, border-color 0.12s, color 0.12s;
+    box-shadow: var(--owm-shadow);
 }
 
 .owm-icon-btn:hover,
 .owm-icon-btn.active {
-    background: #e0f2fe;
-    border-color: #7dd3fc;
-    color: #0369a1;
+    background: #edeae5;
+    border-color: #ccc8bf;
+    color: var(--owm-text);
 }
 
-.owm-italic-lbl {
-    font-style: italic;
-}
+.owm-italic-lbl { font-style: italic; }
 
-.owm-delete-btn {
-    color: #dc2626;
-    border-color: #fca5a5;
-}
-
-.owm-delete-btn:hover {
-    background: #fee2e2;
-    border-color: #f87171;
-    color: #b91c1c;
-}
-
+.owm-delete-btn { color: var(--owm-red); border-color: #fecaca; }
+.owm-delete-btn:hover { background: #fff5f5; border-color: #fca5a5; color: #b91c1c; }
 
 /* Canvas Area */
 .owm-canvas-outer {
-    background: #f1f5f9;
+    background: var(--owm-bg);
     padding: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    overflow-x: auto;   /* allow horizontal scroll on narrow admin screens */
+    overflow-x: auto;
 }
 
 #pdfCanvas {
     display: block;
-    border: 1px solid #cbd5e1;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    flex-shrink: 0;     /* never compress below 595px */
+    border: 1px solid var(--owm-border);
+    box-shadow: 0 2px 12px rgba(28,26,23,.09);
+    flex-shrink: 0;
+    border-radius: 2px;
 }
 
 .owm-canvas-note {
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--owm-subtle);
     text-align: center;
     margin: 0;
     max-width: 595px;
+    font-family: var(--owm-font);
 }
 
-/* Action Bar */
+/* PDF Action Bar */
 .owm-pdf-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     padding: 14px 16px;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
+    background: var(--owm-bg);
+    border-top: 1px solid var(--owm-border);
+    flex-wrap: wrap;
 }
 
 .owm-btn-generate {
-    background: #16a34a !important;
+    font-family: var(--owm-font) !important;
+    background: var(--owm-text) !important;
     color: #fff !important;
-    border-color: #15803d !important;
-    font-weight: 600 !important;
+    border-color: var(--owm-text) !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
     height: 36px !important;
-    line-height: 34px !important;
-    padding: 0 18px !important;
+    line-height: 36px !important;
+    padding: 0 16px !important;
+    border-radius: var(--owm-radius) !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    letter-spacing: -0.1px !important;
+    transition: background 0.15s !important;
 }
-
 .owm-btn-generate:hover {
-    background: #15803d !important;
-    border-color: #166534 !important;
+    background: #2e2b26 !important;
+    border-color: #2e2b26 !important;
+    color: #fff !important;
 }
-
 .owm-btn-generate:disabled {
-    background: #86efac !important;
-    border-color: #86efac !important;
+    opacity: 0.45 !important;
     cursor: not-allowed !important;
 }
 
 .owm-pdf-status {
     font-size: 12px;
-    color: #16a34a;
+    color: var(--owm-green);
+    font-family: var(--owm-font);
 }
 
 .owm-btn-reset {
-    background: #f8fafc !important;
-    color: #64748b !important;
-    border-color: #cbd5e1 !important;
+    font-family: var(--owm-font) !important;
+    background: var(--owm-surface) !important;
+    color: var(--owm-muted) !important;
+    border-color: var(--owm-border) !important;
     height: 36px !important;
-    line-height: 34px !important;
-    padding: 0 18px !important;
+    line-height: 36px !important;
+    padding: 0 16px !important;
+    border-radius: var(--owm-radius) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-shadow: none !important;
+    box-shadow: var(--owm-shadow) !important;
     margin-left: auto !important;
+    transition: background 0.12s, color 0.12s, border-color 0.12s !important;
+}
+.owm-btn-reset:hover {
+    background: #fff5f5 !important;
+    color: var(--owm-red) !important;
+    border-color: #fecaca !important;
 }
 
-.owm-btn-reset:hover {
-    background: #fee2e2 !important;
-    color: #b91c1c !important;
-    border-color: #fca5a5 !important;
+/* PDF template page header */
+.owm-pdf-wrap .owm-page-header {
+    margin-bottom: 0;
+}
+
+.owm-pdf-wrap .owm-card-desc {
+    margin-bottom: 4px;
 }

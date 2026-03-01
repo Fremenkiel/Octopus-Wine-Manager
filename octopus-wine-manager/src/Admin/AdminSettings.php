@@ -22,23 +22,36 @@ class AdminSettings {
         if (!wp_next_scheduled('owm_scheduled_inventory_sync')) {
             wp_schedule_event(time(), 'hourly', 'owm_scheduled_inventory_sync');
         }
+        // Allow owm_manage capability (held by admins + editors) to save these settings.
+        add_filter('option_page_capability_' . $this->option_group, fn() => 'owm_manage');
     }
 
     public function add_menu_page(): void {
+        $icon = 'dashicons-admin-plugins';
+        $svg_path = dirname(__DIR__, 2) . '/assets/images/logo.svg';
+        if (file_exists($svg_path)) {
+            $svg = file_get_contents($svg_path);
+            // Strip any inline style and replace currentColor so WP admin
+            // theming (colour scheme filters) can recolour the icon correctly.
+            $svg = preg_replace('/\s*style="[^"]*"/', '', $svg);
+            $svg = str_replace('fill="currentColor"', 'fill="#a7aaad"', $svg);
+            $icon = 'data:image/svg+xml;base64,' . base64_encode($svg);
+        }
+
         add_menu_page(
             'OWM Settings',
-            'Octopus Wine Managment',
-            'manage_options',
+            'Octopus Wine',
+            'owm_manage',
             'owm-settings',
             [$this, 'render_admin_page'],
-            'dashicons-admin-plugins'
+            $icon
         );
 
         add_submenu_page(
             'owm-settings',
             'PDF Template',
             'PDF Template',
-            'manage_options',
+            'owm_manage',
             'owm-pdf-template',
             [$this, 'render_pdf_template_page']
         );
@@ -47,7 +60,7 @@ class AdminSettings {
         global $submenu;
         $submenu['owm-settings'][] = [
             'Download Wine List PDF',
-            'manage_options',
+            'owm_manage',
             wp_nonce_url(admin_url('admin.php?action=owm_download_pdf'), 'owm_download_pdf_direct'),
         ];
     }
@@ -79,7 +92,7 @@ class AdminSettings {
     }
 
     public function enqueue_admin_assets($hook): void {
-        $owm_pages = ['toplevel_page_owm-settings', 'octopus-wine-managment_page_owm-pdf-template'];
+        $owm_pages = ['toplevel_page_owm-settings', 'octopus-wine_page_owm-pdf-template'];
         if (!in_array($hook, $owm_pages, true)) {
             return;
         }
@@ -106,7 +119,7 @@ jQuery(function($) {
         }
 
         // Only load Fabric.js and the canvas editor on the PDF template page
-        if ($hook === 'octopus-wine-managment_page_owm-pdf-template') {
+        if ($hook === 'octopus-wine_page_owm-pdf-template') {
             wp_enqueue_script(
                 'owm-admin-fabric',
                 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js',
@@ -133,7 +146,7 @@ jQuery(function($) {
     }
 
     public function render_type_order_section_description(): void {
-        echo '<p class="description">Set the order in which wine types appear in the PDF. Drag items to reorder, then save settings.</p>';
+        echo '<p class="owm-field-note">Set the order in which wine types appear in the PDF. Drag to reorder, then save.</p>';
     }
 
     public function render_type_order_field(): void {
@@ -153,24 +166,22 @@ jQuery(function($) {
 
         // Load saved order and merge
         $saved = json_decode(get_option('owm_type_order', '[]'), true) ?: [];
-        $all   = array_unique(array_merge($saved, $meta_values));
 
         // Put unsaved types (not in $saved) in alphabetical order at the end
         $unlisted = array_diff($meta_values, $saved);
         sort($unlisted);
-        $ordered = array_merge($saved, $unlisted);
-        $ordered = array_unique($ordered); // deduplicate, preserve order
+        $ordered = array_unique(array_merge($saved, $unlisted));
 
         if (empty($ordered)) {
-            echo '<p class="description">No wine types found. Sync products first.</p>';
+            echo '<p class="owm-field-note">No wine types found. Sync products first.</p>';
             return;
         }
 
-        echo '<ul id="owm-type-order-list" style="max-width:400px;margin:0;padding:0;list-style:none;">';
+        echo '<ul id="owm-type-order-list">';
         foreach ($ordered as $type) {
             printf(
-                '<li style="display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:4px;background:#fff;border:1px solid #ddd;border-radius:3px;cursor:grab;">'
-                . '<span class="owm-drag-handle" style="cursor:grab;font-size:16px;color:#999;line-height:1;">&#9776;</span>'
+                '<li>'
+                . '<span class="owm-drag-handle">&#9776;</span>'
                 . '<span>%s</span>'
                 . '<input type="hidden" name="owm_type_order[]" value="%s">'
                 . '</li>',
@@ -179,7 +190,7 @@ jQuery(function($) {
             );
         }
         echo '</ul>';
-        echo '<p class="description" style="margin-top:8px;">Drag to reorder. Types not in this list will follow alphabetically.</p>';
+        echo '<p class="owm-field-note">Drag to reorder. Types not listed here will follow alphabetically.</p>';
     }
 
     public function render_input($args): void {
@@ -227,52 +238,79 @@ jQuery(function($) {
         if (get_option('owm_username') && !get_transient('owm_hotel_list')) {
             $this->refresh_hotel_list();
         }
+
+        $last_products  = get_option('owm_last_sync') ?: '';
+        $last_inventory = get_option('owm_last_inventory_sync') ?: '';
         ?>
         <div class="wrap owm-settings-wrap">
-            <h1>Octopus API Integration</h1>
 
-            <div class="owm-sync-status">
-                <strong>Products last synced:</strong>
-                <?php echo esc_html(get_option('owm_last_sync') ?: 'Never'); ?>
-                &nbsp;&nbsp;
-                <strong>Inventory last synced:</strong>
-                <?php echo esc_html(get_option('owm_last_inventory_sync') ?: 'Never'); ?>
+            <div class="owm-page-header">
+                <div>
+                    <h1 class="owm-page-title">Wine Manager</h1>
+                    <p class="owm-page-subtitle">Octopus API sync &amp; PDF export</p>
+                </div>
+                <div class="owm-status-group">
+                    <div class="owm-status-chip">
+                        <span class="owm-dot <?php echo $last_products ? 'owm-dot--ok' : 'owm-dot--idle'; ?>"></span>
+                        <strong>Products</strong>
+                        <?php echo esc_html($last_products ?: 'Never synced'); ?>
+                    </div>
+                    <div class="owm-status-chip">
+                        <span class="owm-dot <?php echo $last_inventory ? 'owm-dot--ok' : 'owm-dot--idle'; ?>"></span>
+                        <strong>Inventory</strong>
+                        <?php echo esc_html($last_inventory ?: 'Never synced'); ?>
+                    </div>
+                </div>
             </div>
 
-            <h2>PDF Export</h2>
-            <p class="description" style="margin-bottom: 15px;">
-                Generate a PDF wine list using the saved template. To customise layout and styles, visit the
-                <a href="<?php echo esc_url(admin_url('admin.php?page=owm-pdf-template')); ?>">PDF Template</a> page.
-            </p>
-            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?action=owm_download_pdf'), 'owm_download_pdf_direct')); ?>"
-               class="button owm-btn-generate">
-                Download Wine List PDF
-            </a>
+            <!-- Export -->
+            <div class="owm-card">
+                <div class="owm-card-label">Export</div>
+                <div class="owm-card-content">
+                    <p class="owm-card-desc">Generate the wine list PDF from the saved template.</p>
+                    <div class="owm-card-actions">
+                        <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?action=owm_download_pdf'), 'owm_download_pdf_direct')); ?>"
+                           class="owm-btn owm-btn--dark">
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                                <path d="M6.5 1v7.5M4 6l2.5 2.5L9 6M1.5 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Download PDF
+                        </a>
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=owm-pdf-template')); ?>" class="owm-text-link">
+                            Edit template &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
 
-            <hr style="margin: 40px 0; border: 0; border-top: 1px solid #e2e8f0;">
+            <!-- Configuration -->
+            <div class="owm-card">
+                <div class="owm-card-label">Configuration</div>
+                <div class="owm-card-content">
+                    <form method="post" action="options.php" class="owm-form">
+                        <?php
+                        settings_fields($this->option_group);
+                        do_settings_sections('owm-settings');
+                        submit_button('Save Changes', 'primary', 'submit', false);
+                        ?>
+                    </form>
+                </div>
+            </div>
 
-            <form method="post" action="options.php">
-                <?php
-                settings_fields($this->option_group);
-                do_settings_sections('owm-settings');
-                submit_button('Update Settings');
-                ?>
-            </form>
+            <!-- Sync -->
+            <div class="owm-card">
+                <div class="owm-card-label">Sync</div>
+                <div class="owm-card-content">
+                    <p class="owm-card-desc">Pull the latest data from HotelBoss. Runs automatically every hour.</p>
+                    <form method="post" class="owm-sync-form">
+                        <?php wp_nonce_field('owm_sync_action'); ?>
+                        <button type="submit" name="owm_manual_sync_all" class="owm-btn owm-btn--dark">Sync All</button>
+                        <button type="submit" name="owm_manual_sync" class="owm-btn owm-btn--ghost">Products only</button>
+                        <button type="submit" name="owm_manual_inventory_sync" class="owm-btn owm-btn--ghost">Inventory only</button>
+                    </form>
+                </div>
+            </div>
 
-            <hr style="margin: 40px 0; border: 0; border-top: 1px solid #e2e8f0;">
-
-            <h2>Data Operations</h2>
-            <form method="post">
-                <?php wp_nonce_field('owm_sync_action'); ?>
-                <p class="description" style="margin-bottom: 15px;">
-                    This will pull all products and their attributes from the assigned hotel.
-                </p>
-                <input type="submit" name="owm_manual_sync_all" class="button button-primary" value="Sync All Now">
-                &nbsp;
-                <input type="submit" name="owm_manual_sync" class="button button-secondary" value="Sync Products Now">
-                &nbsp;
-                <input type="submit" name="owm_manual_inventory_sync" class="button button-secondary" value="Sync Inventory Now">
-            </form>
         </div>
         <?php
     }
@@ -281,7 +319,7 @@ jQuery(function($) {
         if (!isset($_POST['owm_pdf_template']) || !check_admin_referer('owm_pdf_template_action')) {
             return;
         }
-        if (!current_user_can('manage_options')) {
+        if (!current_user_can('owm_manage')) {
             return;
         }
 
@@ -308,13 +346,12 @@ jQuery(function($) {
         $row_fields = WineFields::labels();
         ?>
         <div class="wrap owm-settings-wrap owm-pdf-wrap">
-            <h1>PDF Wine List Template</h1>
-            <p class="description">
-                Add headings and row fields to the canvas, then drag them into position.
-                <strong>Section Headers</strong> define the grouping titles in the PDF.
-                <strong>Row Fields</strong> define the columns that repeat for every wine.
-                Drag near a guide line to snap.
-            </p>
+            <div class="owm-page-header">
+                <div>
+                    <h1 class="owm-page-title">PDF Template</h1>
+                    <p class="owm-page-subtitle">Add fields to the canvas, drag to position, then save.</p>
+                </div>
+            </div>
 
             <form id="owm-pdf-template-form" method="post">
                 <?php wp_nonce_field('owm_pdf_template_action'); ?>
@@ -442,7 +479,7 @@ jQuery(function($) {
     public function handle_generate_pdf(): void {
         check_ajax_referer('owm_generate_pdf_nonce', 'nonce');
 
-        if (!current_user_can('manage_options')) {
+        if (!current_user_can('owm_manage')) {
             wp_die('Unauthorized', '', ['response' => 403]);
         }
 
@@ -471,7 +508,7 @@ jQuery(function($) {
     }
 
     public function handle_download_pdf_direct(): void {
-        if (!current_user_can('manage_options')) {
+        if (!current_user_can('owm_manage')) {
             wp_die('Unauthorized', '', ['response' => 403]);
         }
         check_admin_referer('owm_download_pdf_direct');
