@@ -8,45 +8,87 @@ use OctopusWineManagment\Services\InventorySyncService;
 use OctopusWineManagment\PDF\PdfGenerator;
 use OctopusWineManagment\WineFields;
 
+/**
+ * Registers and renders all plugin admin pages, settings, and AJAX/action handlers.
+ *
+ * Pages:
+ *   • Octopus Wine (top-level)  — API credentials, hotel assignment, wine-type order,
+ *                                  manual sync buttons, and the PDF download link.
+ *   • PDF Template (sub-page)   — Fabric.js canvas editor for the PDF layout.
+ *
+ * WordPress options used:
+ *   owm_company_id          — HotelBoss company identifier
+ *   owm_username            — HotelBoss API username
+ *   owm_password            — HotelBoss API password
+ *   owm_selected_hotel_id   — ID of the hotel whose products are shown
+ *   owm_pdf_template        — JSON string from the canvas editor (see PdfGenerator)
+ *   owm_type_order          — JSON-encoded array of category names in display order
+ *   owm_last_sync           — Timestamp of the last product sync
+ *   owm_last_inventory_sync — Timestamp of the last inventory sync
+ */
 class AdminSettings {
+    /** WordPress Settings API option group — groups all owm_* options together. */
     private $option_group = 'owm_settings_group';
 
     public function __construct() {
-        add_action('admin_menu',             [$this, 'add_menu_page']);
-        add_action('admin_init',             [$this, 'register_settings']);
-        add_action('admin_init',             [$this, 'process_pdf_template_save']);
-        add_action('admin_enqueue_scripts',  [$this, 'enqueue_admin_assets']);
-        add_action('wp_ajax_owm_generate_pdf',      [$this, 'handle_generate_pdf']);
+        // Core admin hooks.
+        add_action('admin_menu',            [$this, 'add_menu_page']);
+        add_action('admin_init',            [$this, 'register_settings']);
+        add_action('admin_init',            [$this, 'process_pdf_template_save']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+
+        // AJAX: generate PDF preview from the canvas editor (sends PDF binary).
+        add_action('wp_ajax_owm_generate_pdf', [$this, 'handle_generate_pdf']);
+
+        // Admin action: direct download link in the sidebar menu and settings page.
         add_action('admin_action_owm_download_pdf', [$this, 'handle_download_pdf_direct']);
+
+        // Scheduled inventory sync callback (registered here as a fallback; the
+        // hourly event is also scheduled in octopus-wine-managment.php).
         add_action('owm_scheduled_inventory_sync', [$this, 'run_scheduled_inventory_sync']);
         if (!wp_next_scheduled('owm_scheduled_inventory_sync')) {
             wp_schedule_event(time(), 'hourly', 'owm_scheduled_inventory_sync');
         }
-        // Allow owm_manage capability (held by admins + editors) to save these settings.
+
+        // Allow the custom 'owm_manage' capability (held by admins + editors) to save
+        // these settings, rather than requiring 'manage_options' (admin only).
         add_filter('option_page_capability_' . $this->option_group, fn() => 'owm_manage');
     }
 
+    // ── Menu / Pages ─────────────────────────────────────────────────────────
+
+    /**
+     * Registers the top-level menu page and its two sub-pages (PDF Template and
+     * the direct PDF download link).
+     *
+     * The menu icon is loaded from assets/images/logo.svg and base64-encoded as
+     * a data URI. Inline style attributes and hard-coded fill colours are stripped
+     * so WordPress admin colour-scheme filters can recolour it correctly.
+     */
     public function add_menu_page(): void {
-        $icon = 'dashicons-admin-plugins';
+        // Default to the WP plugin dashicon if the custom SVG is missing.
+        $icon     = 'dashicons-admin-plugins';
         $svg_path = dirname(__DIR__, 2) . '/assets/images/logo.svg';
         if (file_exists($svg_path)) {
             $svg = file_get_contents($svg_path);
-            // Strip any inline style and replace currentColor so WP admin
-            // theming (colour scheme filters) can recolour the icon correctly.
-            $svg = preg_replace('/\s*style="[^"]*"/', '', $svg);
-            $svg = str_replace('fill="currentColor"', 'fill="#a7aaad"', $svg);
+            // Remove any inline style blocks that would prevent WP colour theming.
+            $svg  = preg_replace('/\s*style="[^"]*"/', '', $svg);
+            // Replace currentColor so the admin CSS filter can re-tint the icon.
+            $svg  = str_replace('fill="currentColor"', 'fill="#a7aaad"', $svg);
             $icon = 'data:image/svg+xml;base64,' . base64_encode($svg);
         }
 
+        // Top-level: main settings + sync + export dashboard.
         add_menu_page(
-            'OWM Settings',
-            'Octopus Wine',
-            'owm_manage',
-            'owm-settings',
+            'OWM Settings',      // page <title>
+            'Octopus Wine',      // sidebar menu label
+            'owm_manage',        // capability required to view
+            'owm-settings',      // menu slug
             [$this, 'render_admin_page'],
             $icon
         );
 
+        // Sub-page: Fabric.js canvas editor for the PDF template.
         add_submenu_page(
             'owm-settings',
             'PDF Template',
@@ -56,7 +98,8 @@ class AdminSettings {
             [$this, 'render_pdf_template_page']
         );
 
-        // Direct-download link in the admin sidebar menu
+        // Append a direct-download link to the sidebar as a plain URL entry.
+        // The nonce is embedded in the URL and verified in handle_download_pdf_direct().
         global $submenu;
         $submenu['owm-settings'][] = [
             'Download Wine List PDF',
@@ -65,6 +108,15 @@ class AdminSettings {
         ];
     }
 
+    // ── Settings Registration ─────────────────────────────────────────────────
+
+    /**
+     * Registers all plugin options with the WordPress Settings API and adds
+     * the corresponding fields to the main settings page.
+     *
+     * owm_type_order is sanitized on save: it must be an array of strings which
+     * is JSON-encoded before storage to preserve ordering.
+     */
     public function register_settings(): void {
         register_setting($this->option_group, 'owm_company_id');
         register_setting($this->option_group, 'owm_username');
@@ -72,31 +124,53 @@ class AdminSettings {
         register_setting($this->option_group, 'owm_selected_hotel_id');
         register_setting($this->option_group, 'owm_pdf_template');
         register_setting($this->option_group, 'owm_type_order', [
+            // Sanitize before storage: ensure it's an array of plain strings,
+            // then JSON-encode so the order is preserved.
             'sanitize_callback' => function ($value) {
                 $arr = is_array($value) ? $value : [];
                 return wp_json_encode(array_values(array_map('sanitize_text_field', $arr)));
             },
         ]);
 
+        // API Authentication section.
         add_settings_section('owm_auth_section', 'API Authentication', null, 'owm-settings');
+        add_settings_field('owm_company_id', 'Company ID', [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_company_id']);
+        add_settings_field('owm_username',   'Username',   [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_username']);
+        add_settings_field('owm_password',   'Password',   [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_password', 'type' => 'password']);
 
-        add_settings_field('owm_company_id', 'Company ID',  [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_company_id']);
-        add_settings_field('owm_username',   'Username',    [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_username']);
-        add_settings_field('owm_password',   'Password',    [$this, 'render_input'], 'owm-settings', 'owm_auth_section', ['name' => 'owm_password', 'type' => 'password']);
-
+        // Hotel selection (populated from the API after the first authenticated save).
         add_settings_section('owm_sync_section', 'Synchronization', null, 'owm-settings');
         add_settings_field('owm_hotel_id', 'Assign Hotel', [$this, 'render_hotel_dropdown'], 'owm-settings', 'owm_sync_section');
 
+        // Drag-and-drop wine type sort order.
         add_settings_section('owm_type_section', 'Wine Type Order', [$this, 'render_type_order_section_description'], 'owm-settings');
         add_settings_field('owm_type_order', 'Type Sort Order', [$this, 'render_type_order_field'], 'owm-settings', 'owm_type_section');
     }
 
+    // ── Asset Enqueueing ─────────────────────────────────────────────────────
+
+    /**
+     * Loads CSS and JavaScript only on the plugin's own admin pages.
+     *
+     * Main settings page:
+     *   • owm-admin.css  — shared admin styles
+     *   • jQuery UI Sortable + inline init — powers the drag-to-reorder type list
+     *
+     * PDF template page (additionally):
+     *   • Fabric.js 5.3.1 (CDN)  — canvas rendering library
+     *   • pdf-canvas.js           — plugin canvas editor built on top of Fabric.js
+     *   • owmTemplateData         — JS object injected via wp_localize_script containing
+     *                               the saved template JSON, AJAX URL, nonce, and font URL
+     *
+     * @param string $hook  Current admin page hook suffix.
+     */
     public function enqueue_admin_assets($hook): void {
         $owm_pages = ['toplevel_page_owm-settings', 'octopus-wine_page_owm-pdf-template'];
         if (!in_array($hook, $owm_pages, true)) {
-            return;
+            return; // not our page — do nothing
         }
 
+        // Shared admin stylesheet.
         wp_enqueue_style(
             'owm-admin-styles',
             plugin_dir_url(dirname(__DIR__, 1)) . 'assets/styles/owm-admin.css',
@@ -104,7 +178,7 @@ class AdminSettings {
             '1.0.1'
         );
 
-        // Sortable type-order list on the main settings page
+        // Main settings page: drag-to-reorder wine type list.
         if ($hook === 'toplevel_page_owm-settings') {
             wp_enqueue_script('jquery-ui-sortable');
             wp_add_inline_script('jquery-ui-sortable', '
@@ -118,8 +192,9 @@ jQuery(function($) {
 ');
         }
 
-        // Only load Fabric.js and the canvas editor on the PDF template page
+        // PDF template page: Fabric.js canvas editor.
         if ($hook === 'octopus-wine_page_owm-pdf-template') {
+            // Load Fabric.js from CDN — must come before the canvas script.
             wp_enqueue_script(
                 'owm-admin-fabric',
                 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js',
@@ -128,6 +203,7 @@ jQuery(function($) {
                 true
             );
 
+            // Plugin canvas editor script (depends on Fabric.js).
             wp_enqueue_script(
                 'owm-admin-pdf-canvas',
                 plugin_dir_url(dirname(__DIR__, 1)) . 'assets/scripts/pdf-canvas.js',
@@ -136,8 +212,9 @@ jQuery(function($) {
                 true
             );
 
+            // Pass PHP-side data to the JavaScript canvas editor.
             wp_localize_script('owm-admin-pdf-canvas', 'owmTemplateData', [
-                'template' => get_option('owm_pdf_template', ''),
+                'template' => get_option('owm_pdf_template', ''), // existing template JSON (may be empty)
                 'ajaxUrl'  => admin_url('admin-ajax.php'),
                 'nonce'    => wp_create_nonce('owm_generate_pdf_nonce'),
                 'fontUrl'  => plugin_dir_url(dirname(__DIR__, 1)) . 'assets/fonts/tw-cen-mt-regular.ttf',
@@ -145,13 +222,29 @@ jQuery(function($) {
         }
     }
 
+    // ── Field Renderers ───────────────────────────────────────────────────────
+
+    /** Renders the descriptive paragraph above the wine-type sort order list. */
     public function render_type_order_section_description(): void {
         echo '<p class="owm-field-note">Set the order in which wine types appear in the PDF. Drag to reorder, then save.</p>';
     }
 
+    /**
+     * Renders the drag-and-drop wine-type sort order list.
+     *
+     * Queries the database directly for distinct product group names (rather than
+     * fetching all posts) for efficiency. Merges the saved order with any new
+     * categories that appeared since the last save; new ones are appended
+     * alphabetically.
+     *
+     * Each list item contains a hidden input named 'owm_type_order[]' whose value
+     * is the category name. When the form is submitted, PHP receives an array in
+     * drag-drop order which register_settings() JSON-encodes for storage.
+     */
     public function render_type_order_field(): void {
-        // Collect distinct type values from published owm_product posts
         global $wpdb;
+
+        // Fetch all distinct product group names from published wine posts.
         $meta_values = $wpdb->get_col($wpdb->prepare(
             "SELECT DISTINCT pm.meta_value
              FROM {$wpdb->postmeta} pm
@@ -164,13 +257,11 @@ jQuery(function($) {
             '_owm_product_group_name'
         ));
 
-        // Load saved order and merge
-        $saved = json_decode(get_option('owm_type_order', '[]'), true) ?: [];
-
-        // Put unsaved types (not in $saved) in alphabetical order at the end
+        // Load the previously saved order and merge in any new (unlisted) types.
+        $saved    = json_decode(get_option('owm_type_order', '[]'), true) ?: [];
         $unlisted = array_diff($meta_values, $saved);
-        sort($unlisted);
-        $ordered = array_unique(array_merge($saved, $unlisted));
+        sort($unlisted); // new types appear alphabetically after the saved ones
+        $ordered  = array_unique(array_merge($saved, $unlisted));
 
         if (empty($ordered)) {
             echo '<p class="owm-field-note">No wine types found. Sync products first.</p>';
@@ -193,12 +284,24 @@ jQuery(function($) {
         echo '<p class="owm-field-note">Drag to reorder. Types not listed here will follow alphabetically.</p>';
     }
 
+    /**
+     * Renders a generic text (or password) <input> for a Settings API field.
+     *
+     * @param array $args  Must contain 'name' (option name). Optionally 'type' ('password').
+     */
     public function render_input($args): void {
         $val  = get_option($args['name']);
         $type = $args['type'] ?? 'text';
         printf('<input type="%s" name="%s" value="%s" class="regular-text" />', $type, $args['name'], esc_attr($val));
     }
 
+    /**
+     * Renders the hotel <select> dropdown.
+     *
+     * The hotel list is cached as a transient ('owm_hotel_list') for one hour after
+     * a successful API authentication. If the transient is absent (e.g. first visit,
+     * or expired), a helper message is shown prompting the user to save credentials.
+     */
     public function render_hotel_dropdown(): void {
         $selected = get_option('owm_selected_hotel_id');
         $hotels   = get_transient('owm_hotel_list');
@@ -221,20 +324,31 @@ jQuery(function($) {
         echo '</select>';
     }
 
+    // ── Page Renderers ────────────────────────────────────────────────────────
+
+    /**
+     * Renders the main settings page (Dashboard + Configuration + Sync cards).
+     *
+     * Also handles manual sync form submissions (product sync, inventory sync, or both)
+     * that POST to this same page. Each action is protected by a nonce.
+     *
+     * After saving API credentials the hotel list transient is refreshed so the
+     * hotel dropdown populates immediately without requiring a page reload.
+     */
     public function render_admin_page(): void {
+        // Handle manual sync form submissions posted to this page.
         if (isset($_POST['owm_manual_sync']) && check_admin_referer('owm_sync_action')) {
             $this->handle_sync();
         }
-
         if (isset($_POST['owm_manual_inventory_sync']) && check_admin_referer('owm_sync_action')) {
             $this->handle_inventory_sync();
         }
-
         if (isset($_POST['owm_manual_sync_all']) && check_admin_referer('owm_sync_action')) {
             $this->handle_sync();
             $this->handle_inventory_sync();
         }
 
+        // If credentials exist but the hotel list hasn't been loaded yet, try now.
         if (get_option('owm_username') && !get_transient('owm_hotel_list')) {
             $this->refresh_hotel_list();
         }
@@ -250,11 +364,13 @@ jQuery(function($) {
                     <p class="owm-page-subtitle">Octopus API sync &amp; PDF export</p>
                 </div>
                 <div class="owm-status-group">
+                    <!-- Product sync status chip -->
                     <div class="owm-status-chip">
                         <span class="owm-dot <?php echo $last_products ? 'owm-dot--ok' : 'owm-dot--idle'; ?>"></span>
                         <strong>Products</strong>
                         <?php echo esc_html($last_products ?: 'Never synced'); ?>
                     </div>
+                    <!-- Inventory sync status chip -->
                     <div class="owm-status-chip">
                         <span class="owm-dot <?php echo $last_inventory ? 'owm-dot--ok' : 'owm-dot--idle'; ?>"></span>
                         <strong>Inventory</strong>
@@ -263,7 +379,7 @@ jQuery(function($) {
                 </div>
             </div>
 
-            <!-- Export -->
+            <!-- Export card: download the wine list PDF -->
             <div class="owm-card">
                 <div class="owm-card-label">Export</div>
                 <div class="owm-card-content">
@@ -283,7 +399,7 @@ jQuery(function($) {
                 </div>
             </div>
 
-            <!-- Configuration -->
+            <!-- Configuration card: API credentials, hotel, type order -->
             <div class="owm-card">
                 <div class="owm-card-label">Configuration</div>
                 <div class="owm-card-content">
@@ -297,7 +413,7 @@ jQuery(function($) {
                 </div>
             </div>
 
-            <!-- Sync -->
+            <!-- Sync card: manual triggers for product and inventory sync -->
             <div class="owm-card">
                 <div class="owm-card-label">Sync</div>
                 <div class="owm-card-content">
@@ -315,6 +431,17 @@ jQuery(function($) {
         <?php
     }
 
+    // ── PDF Template Save ─────────────────────────────────────────────────────
+
+    /**
+     * Handles the PDF template form submission (hooked to 'admin_init' so it runs
+     * before any output is sent).
+     *
+     * Validates the nonce and capability, then decodes the incoming JSON to verify
+     * it is well-formed before storing it. Redirects back to the template page with
+     * a query-string status flag ('saved' or 'error') that render_pdf_template_page()
+     * converts to an admin notice.
+     */
     public function process_pdf_template_save(): void {
         if (!isset($_POST['owm_pdf_template']) || !check_admin_referer('owm_pdf_template_action')) {
             return;
@@ -328,6 +455,7 @@ jQuery(function($) {
         $status    = json_last_error() === JSON_ERROR_NONE ? 'saved' : 'error';
 
         if ($status === 'saved') {
+            // Re-encode with wp_json_encode to normalise whitespace/escaping.
             update_option('owm_pdf_template', wp_json_encode($decoded));
         }
 
@@ -335,7 +463,20 @@ jQuery(function($) {
         exit;
     }
 
+    /**
+     * Renders the PDF template canvas editor page.
+     *
+     * The canvas editor is powered by Fabric.js (loaded in enqueue_admin_assets()).
+     * Fields are dragged from the palette onto an A4-width canvas (595 px).
+     * On save the canvas JSON is serialised into the hidden input and submitted
+     * to process_pdf_template_save() via the standard form POST.
+     *
+     * The Formatting Toolbar (font, size, colour, bold/italic, alignment) updates
+     * the selected Fabric.js object in real time; those properties are included in
+     * the serialised JSON and consumed by PdfGenerator::extract_template().
+     */
     public function render_pdf_template_page(): void {
+        // Display a save/error notice if redirected back from process_pdf_template_save().
         $status = $_GET['template_status'] ?? '';
         if ($status === 'saved') {
             echo '<div class="notice notice-success is-dismissible"><p>Template saved.</p></div>';
@@ -343,6 +484,8 @@ jQuery(function($) {
             echo '<div class="notice notice-error is-dismissible"><p>Invalid template data — please try again.</p></div>';
         }
 
+        // Row field labels come from WineFields::labels() so the palette stays in
+        // sync with the fields available in PdfGenerator.
         $row_fields = WineFields::labels();
         ?>
         <div class="wrap owm-settings-wrap owm-pdf-wrap">
@@ -355,20 +498,24 @@ jQuery(function($) {
 
             <form id="owm-pdf-template-form" method="post">
                 <?php wp_nonce_field('owm_pdf_template_action'); ?>
+                <!-- The canvas editor writes the serialised Fabric.js JSON here before submit. -->
                 <input type="hidden" id="owm_pdf_template_data" name="owm_pdf_template">
 
                 <div class="owm-pdf-editor">
 
-                    <!-- Field Palette -->
+                    <!-- Field Palette: drag/click fields onto the canvas -->
                     <div class="owm-field-palette">
 
                         <div class="owm-palette-section">
                             <span class="owm-palette-label">Section Headers</span>
                             <div class="owm-field-buttons">
+                                <!-- H1 maps to the wine category (page running header) -->
                                 <button type="button" class="owm-field-btn owm-field-btn-h1"
                                         onclick="addField('category', 'h1')">H1 &nbsp;Wine Type</button>
+                                <!-- H2 maps to the country heading -->
                                 <button type="button" class="owm-field-btn owm-field-btn-h2"
                                         onclick="addField('country', 'h2')">H2 &nbsp;Country</button>
+                                <!-- H3 maps to the region heading -->
                                 <button type="button" class="owm-field-btn owm-field-btn-h3"
                                         onclick="addField('region', 'h3')">H3 &nbsp;Region</button>
                             </div>
@@ -391,7 +538,7 @@ jQuery(function($) {
 
                     </div>
 
-                    <!-- Formatting Toolbar -->
+                    <!-- Formatting Toolbar: styles the currently selected canvas object -->
                     <div class="owm-toolbar" id="owm-formatting-toolbar">
                         <div class="owm-toolbar-inner">
                             <div class="owm-toolbar-group">
@@ -402,6 +549,7 @@ jQuery(function($) {
                                     <option value="Times New Roman">Times New Roman</option>
                                     <option value="Helvetica">Helvetica</option>
                                     <option value="Courier">Courier</option>
+                                    <!-- TW Cen MT is the custom font bundled with the plugin -->
                                     <option value="TW Cen MT">TW Cen MT</option>
                                 </select>
                             </div>
@@ -450,7 +598,7 @@ jQuery(function($) {
                         <div class="owm-toolbar-idle-hint">Select a field on the canvas to format it</div>
                     </div>
 
-                    <!-- Canvas -->
+                    <!-- Canvas: A4-width Fabric.js canvas (595 px = one A4 page width) -->
                     <div class="owm-canvas-outer">
                         <canvas id="pdfCanvas"></canvas>
                         <p class="owm-canvas-note">
@@ -458,9 +606,11 @@ jQuery(function($) {
                         </p>
                     </div>
 
-                    <!-- Actions -->
+                    <!-- Form actions -->
                     <div class="owm-pdf-actions">
                         <input type="submit" class="button button-primary" value="Save Template">
+                        <!-- "Download" triggers the AJAX handler (handle_generate_pdf) which
+                             uses the current unsaved canvas state, not the stored option. -->
                         <button type="button" id="owm-generate-pdf" class="button owm-btn-generate">
                             Download Wine List PDF
                         </button>
@@ -476,6 +626,19 @@ jQuery(function($) {
         <?php
     }
 
+    // ── AJAX / Action Handlers ────────────────────────────────────────────────
+
+    /**
+     * AJAX handler: wp_ajax_owm_generate_pdf
+     *
+     * Called by the canvas editor's "Download Wine List PDF" button. Accepts the
+     * current (potentially unsaved) template JSON via $_POST['template'] so the
+     * user can preview changes before saving them. Falls back to the saved option
+     * if no template is posted.
+     *
+     * Flushes output buffers before calling PdfGenerator::generate() so mPDF can
+     * write its own Content-Type and Content-Disposition headers cleanly.
+     */
     public function handle_generate_pdf(): void {
         check_ajax_referer('owm_generate_pdf_nonce', 'nonce');
 
@@ -483,7 +646,7 @@ jQuery(function($) {
             wp_die('Unauthorized', '', ['response' => 403]);
         }
 
-        // Flush all output buffers so mPDF can send PDF headers cleanly
+        // Flush all output buffers so mPDF can send PDF headers cleanly.
         while (ob_get_level()) {
             ob_end_clean();
         }
@@ -492,13 +655,14 @@ jQuery(function($) {
             $template_json = '';
             if (!empty($_POST['template'])) {
                 $raw = wp_unslash($_POST['template']);
+                // Only use the posted template if it is valid JSON.
                 if (json_decode($raw) !== null) {
                     $template_json = $raw;
                 }
             }
 
             $generator = new PdfGenerator();
-            $generator->generate($template_json); // sends headers + PDF binary, then exits
+            $generator->generate($template_json); // streams PDF binary to the browser
         } catch (\Exception $e) {
             status_header(500);
             echo 'PDF generation failed: ' . esc_html($e->getMessage());
@@ -507,19 +671,27 @@ jQuery(function($) {
         exit;
     }
 
+    /**
+     * Admin action handler: admin_action_owm_download_pdf
+     *
+     * Triggered by the nonce-protected URL used in the sidebar menu and the
+     * Export card. Uses the saved template option (not a posted template).
+     * Verifies capability and nonce before generating.
+     */
     public function handle_download_pdf_direct(): void {
         if (!current_user_can('owm_manage')) {
             wp_die('Unauthorized', '', ['response' => 403]);
         }
         check_admin_referer('owm_download_pdf_direct');
 
+        // Flush output buffers before mPDF writes its headers.
         while (ob_get_level()) {
             ob_end_clean();
         }
 
         try {
             $generator = new PdfGenerator();
-            $generator->generate(); // uses saved owm_pdf_template option
+            $generator->generate(); // uses the stored owm_pdf_template option
         } catch (\Exception $e) {
             wp_die('PDF generation failed: ' . esc_html($e->getMessage()));
         }
@@ -527,6 +699,13 @@ jQuery(function($) {
         exit;
     }
 
+    // ── Private Sync Helpers ─────────────────────────────────────────────────
+
+    /**
+     * Fetches the hotel list from the HotelBoss API and caches it as a transient
+     * for one hour. Errors are silently swallowed so the settings page still loads
+     * if the API is temporarily unavailable.
+     */
     private function refresh_hotel_list(): void {
         try {
             $client = new HotelBossClient(get_option('owm_company_id'));
@@ -535,10 +714,14 @@ jQuery(function($) {
                 set_transient('owm_hotel_list', $hotels, HOUR_IN_SECONDS);
             }
         } catch (\Exception $e) {
-            // Silence error in dropdown
+            // Silence: the dropdown will show a "please save credentials" hint instead.
         }
     }
 
+    /**
+     * Runs a full product sync and outputs an admin notice with the result count.
+     * Called from the manual sync form submission inside render_admin_page().
+     */
     private function handle_sync(): void {
         $client = new HotelBossClient(get_option('owm_company_id'));
         try {
@@ -551,6 +734,11 @@ jQuery(function($) {
         }
     }
 
+    /**
+     * Runs an inventory sync and outputs an admin notice with the number of
+     * products whose stock quantity was updated.
+     * Called from the manual sync form submission inside render_admin_page().
+     */
     private function handle_inventory_sync(): void {
         $client = new HotelBossClient(get_option('owm_company_id'));
         try {
@@ -563,6 +751,11 @@ jQuery(function($) {
         }
     }
 
+    /**
+     * WP-Cron callback for the 'owm_scheduled_inventory_sync' event.
+     * Runs the same inventory sync as handle_inventory_sync() but without HTML
+     * output; errors are written to the PHP error log instead.
+     */
     public function run_scheduled_inventory_sync(): void {
         $client = new HotelBossClient(get_option('owm_company_id'));
         try {

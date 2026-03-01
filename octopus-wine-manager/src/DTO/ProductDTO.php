@@ -3,7 +3,12 @@
 namespace OctopusWineManagment\DTO;
 
 /**
- * Represents a single Product item
+ * Data Transfer Object for a single HotelBoss product.
+ *
+ * Constructed from the raw associative array returned by the
+ * GET /api/Products/GetProducts endpoint. Named attributes (Country, Region,
+ * Wine, etc.) are parsed from the nested 'Attributes' array into a keyed map
+ * so callers can access them by name via getAttribute() / getAttributeValues().
  */
 class ProductDTO {
     public $id;
@@ -15,22 +20,37 @@ class ProductDTO {
     public $storageLocation;
     public $quantity;
     public $costPrice;
+
+    /**
+     * Keyed map of attribute name → value (string) or values (string[]).
+     * An attribute becomes an array when the API returns it more than once for
+     * the same product (e.g. two grape varieties).
+     *
+     * @var array<string, string|string[]>
+     */
     public $attributes = [];
 
+    /**
+     * @param array $data  Raw product array from the API JSON response.
+     */
     public function __construct($data) {
-        $this->id = $data['ID'] ?? null;
-        $this->productGroupID = $data['ProductGroupID'] ?? null;
+        $this->id               = $data['ID']              ?? null;
+        $this->productGroupID   = $data['ProductGroupID']  ?? null;
         $this->productGroupName = $data['productGroupName'] ?? null;
-        $this->price = $data['Price'] ?? 0.0;
-        $this->vatPercent = $data['VatPercent'] ?? 0.0;
-        $this->storageLocation = $data['StorageLocation'] ?? null;
-        $this->costPrice = $data['CostPrice'] ?? 0.0;
-        
+        $this->price            = $data['Price']           ?? 0.0;
+        $this->vatPercent       = $data['VatPercent']      ?? 0.0;
+        $this->storageLocation  = $data['StorageLocation'] ?? null;
+        $this->costPrice        = $data['CostPrice']       ?? 0.0;
+
+        // Flatten the Attributes array into a name-keyed map.
+        // If the same attribute name appears more than once, upgrade the value
+        // to an array so all values are preserved.
         if (isset($data['Attributes'])) {
             foreach ($data['Attributes'] as $attr) {
                 $name  = $attr['AttributeName'];
                 $value = $attr['AttributeValue'];
                 if (isset($this->attributes[$name])) {
+                    // Promote scalar to array on the second occurrence.
                     if (!is_array($this->attributes[$name])) {
                         $this->attributes[$name] = [$this->attributes[$name]];
                     }
@@ -43,7 +63,11 @@ class ProductDTO {
     }
 
     /**
-     * Helper to get a specific attribute value (returns first value if multiple exist)
+     * Returns the first value for the named attribute, or null if absent.
+     * Use this when you only need a single representative value (e.g. Volume).
+     *
+     * @param string $name  Attribute name, e.g. 'Country', 'Vintage'.
+     * @return string|null
      */
     public function getAttribute($name) {
         $value = $this->attributes[$name] ?? null;
@@ -51,7 +75,11 @@ class ProductDTO {
     }
 
     /**
-     * Returns all values for an attribute as an array
+     * Returns all values for the named attribute as a flat array.
+     * Returns an empty array if the attribute is absent.
+     *
+     * @param string $name  Attribute name, e.g. 'Grape'.
+     * @return string[]
      */
     public function getAttributeValues($name) {
         $value = $this->attributes[$name] ?? null;
