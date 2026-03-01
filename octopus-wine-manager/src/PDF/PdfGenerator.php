@@ -40,6 +40,7 @@ class PdfGenerator {
             'fontdata'      => [
                 'twcenmt' => ['R' => 'tw-cen-mt-regular.ttf'],
             ],
+            'debug' => true,
         ]);
 
         // Register one named HTML header per category via the PHP API.
@@ -58,7 +59,8 @@ class PdfGenerator {
 
         $mpdf->SetTitle('Wine List');
         $mpdf->WriteHTML($html);
-        $mpdf->Output('wine-list.pdf', \Mpdf\Output\Destination::DOWNLOAD);
+        // $mpdf->Output('wine-list.pdf', \Mpdf\Output\Destination::DOWNLOAD);
+        $mpdf->Output();
     }
 
     private function get_sorted_categories(array $wines): array {
@@ -312,52 +314,105 @@ class PdfGenerator {
                     // never be stranded alone at the bottom of a page.
                     $ncols = max(count($coltemplate), 1);
 
+                    // Find which column index each header's x position maps to so
+                    // an empty prefix cell can be inserted to align the header text
+                    // with the correct wine-row column.
+                    $h2_start = 0;
+                    foreach ($coltemplate as $ci => $cx) {
+                        if ((float) $cx <= (float) ($headers[2]['x'] ?? 0)) $h2_start = $ci;
+                    }
+                    $h3_start = 0;
+                    foreach ($coltemplate as $ci => $cx) {
+                        if ((float) $cx <= (float) ($headers[3]['x'] ?? 0)) $h3_start = $ci;
+                    }
+
+                    // Pre-compute column widths once — identical for every wine.
+                    // Enforce the price minimum, shrink other columns proportionally,
+                    // then correct any floating-point drift so the total is exactly
+                    // 100%. This guarantees every row is the same width and mPDF's
+                    // table-layout:fixed can honour them without auto-scaling fonts.
+                    $price_min  = round(155 / self::CANVAS_WIDTH * 100, 1);
+                    $row_widths = [];
+                    foreach ($rows as $key => $row) {
+                        $widths      = [];
+                        $price_extra = 0.0;
+                        foreach ($row as $i => $col) {
+                            $raw = (float) ($col['width'] ?? 0);
+                            if ($col['key'] === 'price' && $raw < $price_min) {
+                                $price_extra = $price_min - $raw;
+                                $widths[$i]  = $price_min;
+                            } else {
+                                $widths[$i] = $raw;
+                            }
+                        }
+                        if ($price_extra > 0) {
+                            $other_total = 0.0;
+                            foreach ($row as $i => $col) {
+                                if ($col['key'] !== 'price') $other_total += $widths[$i];
+                            }
+                            if ($other_total > 0) {
+                                foreach ($row as $i => $col) {
+                                    if ($col['key'] !== 'price') {
+                                        $widths[$i] = round($widths[$i] - ($widths[$i] / $other_total) * $price_extra, 1);
+                                    }
+                                }
+                            }
+                        }
+                        // Absorb any rounding drift into the first non-price column.
+                        $drift = round(100.0 - array_sum($widths), 1);
+                        if ($drift !== 0.0) {
+                            foreach ($row as $i => $col) {
+                                if ($col['key'] !== 'price') {
+                                    $widths[$i] = round($widths[$i] + $drift, 1);
+                                    break;
+                                }
+                            }
+                        }
+                        $row_widths[$key] = $widths;
+                    }
+
                     foreach ($region_wines as $wine_idx => $wine) {
-                        // Build the wine's <tr> rows first so we can embed them
-                        // in either the header table or a standalone table.
                         $wine_rows = '';
                         foreach ($rows as $key => $row) {
+                            $last_i    = count($row) - 1;
                             $wine_rows .= '<tr>';
                             foreach ($row as $i => $col) {
-                                $fs = isset($col['fontSize']) ? intval($col['fontSize']) . 'px' : '11px';
+                                $fs = isset($col['fontSize']) ? intval($col['fontSize']) . 'px' : '13px';
                                 $ff = $this->safe_font($col['fontFamily'] ?? 'Arial');
                                 $fw = ($col['fontWeight'] ?? '') === 'bold'   ? 'bold'   : 'normal';
                                 $fi = ($col['fontStyle']  ?? '') === 'italic' ? 'italic' : 'normal';
                                 $fc = $this->safe_color($col['fill'] ?? '#1e293b');
                                 $ta = in_array($col['textAlign'] ?? 'left', ['left', 'center', 'right']) ? ($col['textAlign'] ?? 'left') : 'left';
-                                $w  = $col['width'] ?? 'auto';
-                                if ($col['key'] === 'price') {
-                                    $min_pct = round(124 / self::CANVAS_WIDTH * 100, 1);
-                                    if ((float) $w < $min_pct) {
-                                        $w = $min_pct . '%';
-                                    }
-                                }
+                                $w  = $row_widths[$key][$i] . '%';
+                                $pr = ($i === $last_i) ? '0' : '8px';
                                 $span = array_search($col['x'], $coltemplate);
                                 if ($span !== $i) {
                                     $wine_rows .= sprintf('<td colspan="%d"></td>', $span);
                                 }
                                 $wine_rows .= sprintf(
-                                    '<td style="font-size:%s;font-family:%s;font-weight:%s;font-style:%s;color:%s;text-align:%s;width:%s;padding:0 8px;vertical-align:middle;">%s</td>',
-                                    $fs, $ff, $fw, $fi, $fc, $ta, $w,
+                                    '<td style="font-size:%s;font-family:%s;font-weight:%s;font-style:%s;color:%s;text-align:%s;width:%s;padding:0 %s 0 8px;vertical-align:middle;">%s</td>',
+                                    $fs, $ff, $fw, $fi, $fc, $ta, $w, $pr,
                                     esc_html($this->format_field($wine, $col['key']))
                                 );
                             }
                             $wine_rows .= '</tr>';
                         }
 
-                        $body .= '<table style="page-break-inside:avoid;">';
+                        $body .= '<table style="page-break-inside:avoid;overflow:wrap;table-layout:fixed;">';
 
                         if ($wine_idx === 0) {
                             if ($is_first_region) {
+                                $h2_prefix = $h2_start > 0 ? sprintf('<td colspan="%d"></td>', $h2_start) : '';
                                 $body .= sprintf(
-                                    '<tr><td colspan="%d" style="padding:16px 8px 3px;%s">%s</td></tr>',
-                                    $ncols, $h2_css, esc_html($country)
+                                    '<tr>%s<td colspan="%d" style="padding:16px 8px 3px;%s">%s</td></tr>',
+                                    $h2_prefix, $ncols - $h2_start, $h2_css, esc_html($country)
                                 );
                             }
                             if ($region !== '__none__') {
+                                $h3_prefix = $h3_start > 0 ? sprintf('<td colspan="%d"></td>', $h3_start) : '';
                                 $body .= sprintf(
-                                    '<tr><td colspan="%d" style="padding:4px 8px;%s">%s</td></tr>',
-                                    $ncols, $h3_css, esc_html($region)
+                                    '<tr>%s<td colspan="%d" style="padding:4px 8px;%s">%s</td></tr>',
+                                    $h3_prefix, $ncols - $h3_start, $h3_css, esc_html($region)
                                 );
                             }
                         }
