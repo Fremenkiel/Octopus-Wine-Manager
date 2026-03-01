@@ -28,7 +28,15 @@ if (is_admin()) {
 // Grant the owm_manage capability to administrators and editors.
 // Roles are stored in the DB; the has_cap() guard prevents redundant writes.
 add_action('init', function() {
-    foreach (['administrator', 'editor', 'author'] as $role_name) {
+    global $wp_roles;
+
+    $exclude_array = ['subscriber', 'contributor'];
+
+    $all_roles = $wp_roles->roles;
+    foreach ($all_roles as $role_name=>$role_entry) {
+        if (in_array($role_name, $exclude_array)) {
+          continue;
+        }
         $role = get_role($role_name);
         if ($role && !$role->has_cap('owm_manage')) {
             $role->add_cap('owm_manage');
