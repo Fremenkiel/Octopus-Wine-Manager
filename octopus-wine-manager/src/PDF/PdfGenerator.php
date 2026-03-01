@@ -51,7 +51,7 @@ class PdfGenerator {
         foreach ($this->get_sorted_categories($wines) as $category) {
             $mpdf->DefHTMLHeaderByName(
                 'cat_' . md5($category),
-                '<div style="padding:1mm 0;' . $h1_style . '">' . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . '</div>'
+                '<div style="' . $h1_style . 'padding: 7px 8px;">' . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . '</div>'
             );
         }
 
@@ -435,7 +435,7 @@ class PdfGenerator {
 body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
 
 /* H1 — Wine type (from template) */
-.pdf-h1 { margin: 18px 0 4px; padding: 7px 8px; page-break-after: avoid; {$h1_css} }
+.pdf-h1 { margin: 0px; padding: 7px 8px; page-break-after: avoid; {$h1_css} }
 
 /* Table */
 table { width: 100%; border-collapse: collapse; margin: 5px 0; }
