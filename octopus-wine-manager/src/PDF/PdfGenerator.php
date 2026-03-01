@@ -44,9 +44,8 @@ class PdfGenerator {
         ]);
 
         // Register one named HTML header per category via the PHP API.
-        // The header activates from the page AFTER the category starts (no
-        // show-this-page), so the inline H1 div handles the opening page and
-        // subsequent pages get the running header — no duplication.
+        // show-this-page="1" makes the header appear on the opening page too,
+        // so every page of a category (including the first) uses the same header.
         $h1_style = $this->header_css($parsed['headers'][1]);
         foreach ($this->get_sorted_categories($wines) as $category) {
             $mpdf->DefHTMLHeaderByName(
@@ -246,7 +245,6 @@ class PdfGenerator {
         }
 
         // Build header CSS from template styles
-        $h1_css = $this->header_css($headers[1]);
         $h2_css = $this->header_css($headers[2]);
         $h3_css = $this->header_css($headers[3]);
 
@@ -290,10 +288,8 @@ class PdfGenerator {
                 $body .= '<pagebreak />';
             }
             $first_category = false;
-            $body .= sprintf('<div class="pdf-h1">%s</div>', esc_html($category));
-            // Activate running header after the inline H1 so it only repeats
-            // on continuation pages, never on the same page as the H1.
-            $body .= sprintf('<sethtmlpageheader name="cat_%s" value="on"/>', md5($category));
+            // Activate the named header on this page and all continuation pages.
+            $body .= sprintf('<sethtmlpageheader name="cat_%s" value="on" show-this-page="1"/>', md5($category));
 
             foreach ($by_country as $country => $by_region) {
                 ksort($by_region);
@@ -433,9 +429,6 @@ class PdfGenerator {
 <meta charset="UTF-8">
 <style>
 body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
-
-/* H1 — Wine type (from template) */
-.pdf-h1 { margin: 0px; padding: 7px 8px; page-break-after: avoid; {$h1_css} }
 
 /* Table */
 table { width: 100%; border-collapse: collapse; margin: 5px 0; }
