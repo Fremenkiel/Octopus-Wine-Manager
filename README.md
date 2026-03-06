@@ -7,17 +7,18 @@ A WordPress plugin that syncs wine products from the HotelBoss API and exports t
 ## Table of Contents
 
 1. [Installation](#installation)
-2. [Configuration](#configuration)
-3. [How Sync Works](#how-sync-works)
-4. [Editing the PDF Template](#editing-the-pdf-template)
-5. [Accessing the Public PDF Endpoint](#accessing-the-public-pdf-endpoint)
-6. [Downloading the PDF from the Admin](#downloading-the-pdf-from-the-admin)
-7. [Wine Type Order](#wine-type-order)
-8. [Filtering Which Products Are Imported](#filtering-which-products-are-imported)
-9. [Adding or Removing Row Fields](#adding-or-removing-row-fields)
-10. [Custom Fonts](#custom-fonts)
-11. [File Structure](#file-structure)
-12. [WordPress Options Reference](#wordpress-options-reference)
+2. [Building a Production Zip](#building-a-production-zip)
+3. [Configuration](#configuration)
+4. [How Sync Works](#how-sync-works)
+5. [Editing the PDF Template](#editing-the-pdf-template)
+6. [Accessing the Public PDF Endpoint](#accessing-the-public-pdf-endpoint)
+7. [Downloading the PDF from the Admin](#downloading-the-pdf-from-the-admin)
+8. [Wine Type Order](#wine-type-order)
+9. [Filtering Which Products Are Imported](#filtering-which-products-are-imported)
+10. [Adding or Removing Row Fields](#adding-or-removing-row-fields)
+11. [Custom Fonts](#custom-fonts)
+12. [File Structure](#file-structure)
+13. [WordPress Options Reference](#wordpress-options-reference)
 
 ---
 
@@ -28,6 +29,50 @@ A WordPress plugin that syncs wine products from the HotelBoss API and exports t
 3. Navigate to **Octopus Wine** in the sidebar to configure credentials.
 
 > **Requires:** WordPress 6.0+, PHP 7.4+, the PHP `curl` extension, and the PHP `zip` extension (needed by mPDF for font processing).
+
+---
+
+## Building a Production Zip
+
+The `vendor/mpdf` package bundles ~87 MB of international fonts, and macOS adds hidden metadata folders. Zipping the plugin naively produces a file that exceeds typical PHP upload limits and triggers WordPress's **"The link you followed has expired"** error when installing via **Plugins › Upload Plugin**.
+
+Run the following command from the **parent directory** of `octopus-wine-manager/` to produce a clean, minimal zip:
+
+```bash
+zip -r octopus-wine-manager.zip octopus-wine-manager \
+  --exclude "*.DS_Store" \
+  --exclude "*__MACOSX*" \
+  --exclude "octopus-wine-manager/.claude/*" \
+  --exclude "octopus-wine-manager/.git/*" \
+  --exclude "octopus-wine-manager/*.zip" \
+  --exclude "octopus-wine-manager/node_modules/*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Ab*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Aeg*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Akk*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/ayar*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/dam*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/DBS*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Dhy*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/dro*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Fre*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Gar*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Jom*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Khmeros*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Lohit*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/MiriamMonoCLM*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/mph*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Nakula*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Raph*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Rekha*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Sahadeva*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Samyak*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Sun*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Tai*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Vij*" \
+  --exclude "octopus-wine-manager/vendor/mpdf/mpdf/ttfonts/Waree*"
+```
+
+This strips unused international fonts (the plugin only uses DejaVu/Arial and the bundled TW Cen MT), macOS metadata, development tooling, and any nested zips — reducing the output from ~89 MB to ~13 MB.
 
 ---
 
