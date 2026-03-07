@@ -33,3 +33,14 @@ require_once __DIR__ . "/octopus-wine-managment.php";
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+
+// ── Activation: seed the default PDF template ────────────────────────────────
+
+register_activation_hook( __FILE__, function () {
+    // Only write if no template has been saved yet.
+    if ( get_option( 'owm_pdf_template' ) !== false ) {
+        return;
+    }
+
+    add_option( 'owm_pdf_template', wp_json_encode( \OctopusWineManagment\Admin\AdminSettings::default_template() ) );
+} );

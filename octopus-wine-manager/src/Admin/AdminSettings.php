@@ -30,6 +30,128 @@ class AdminSettings {
     /** WordPress Settings API option group — groups all owm_* options together. */
     private $option_group = 'owm_settings_group';
 
+    /**
+     * Returns the default PDF template as a plain PHP array in Fabric.js JSON format.
+     *
+     * This is the single authoritative definition of the default layout. It is used
+     * both when seeding the option on plugin activation and when the canvas editor
+     * requests the default via owmTemplateData.defaultTemplate.
+     *
+     * Fields mirror applyDefaultTemplate() in pdf-canvas.js — keep them in sync.
+     */
+    public static function default_template(): array {
+        return [
+            'version' => '5.3.1',
+            'objects' => [
+                [
+                    'type'           => 'text',
+                    'text'           => '{{category}}',
+                    'left'           => 228,
+                    'top'            => 24,
+                    'fontSize'       => 28,
+                    'fontFamily'     => 'TW Cen MT',
+                    'fontWeight'     => 'normal',
+                    'fontStyle'      => 'normal',
+                    'fill'           => '#1e293b',
+                    'textAlign'      => 'center',
+                    'styles'         => (object)[],
+                    'placeholderKey' => 'category',
+                    'headerLevel'    => 1,
+                ],
+                [
+                    'type'           => 'text',
+                    'text'           => '{{country}}',
+                    'left'           => 78,
+                    'top'            => 90,
+                    'fontSize'       => 24,
+                    'fontFamily'     => 'TW Cen MT',
+                    'fontWeight'     => 'bold',
+                    'fontStyle'      => 'normal',
+                    'fill'           => '#334155',
+                    'textAlign'      => 'left',
+                    'styles'         => (object)[],
+                    'placeholderKey' => 'country',
+                    'headerLevel'    => 2,
+                ],
+                [
+                    'type'           => 'text',
+                    'text'           => '{{region}}',
+                    'left'           => 78,
+                    'top'            => 154,
+                    'fontSize'       => 18,
+                    'fontFamily'     => 'TW Cen MT',
+                    'fontWeight'     => 'normal',
+                    'fontStyle'      => 'italic',
+                    'fill'           => '#64748b',
+                    'textAlign'      => 'left',
+                    'styles'         => (object)[],
+                    'placeholderKey' => 'region',
+                    'headerLevel'    => 3,
+                ],
+                [
+                    'type'           => 'text',
+                    'text'           => '{{vintage}}',
+                    'left'           => 20,
+                    'top'            => 218.66,
+                    'fontSize'       => 18,
+                    'fontFamily'     => 'TW Cen MT',
+                    'fontWeight'     => 'normal',
+                    'fontStyle'      => 'normal',
+                    'fill'           => '#1e293b',
+                    'textAlign'      => 'left',
+                    'styles'         => (object)[],
+                    'placeholderKey' => 'vintage',
+                    'headerLevel'    => 0,
+                ],
+                [
+                    'type'           => 'text',
+                    'text'           => '{{wine}}',
+                    'left'           => 78,
+                    'top'            => 218.66,
+                    'fontSize'       => 18,
+                    'fontFamily'     => 'TW Cen MT',
+                    'fontWeight'     => 'normal',
+                    'fontStyle'      => 'normal',
+                    'fill'           => '#1e293b',
+                    'textAlign'      => 'left',
+                    'styles'         => (object)[],
+                    'placeholderKey' => 'wine',
+                    'headerLevel'    => 0,
+                ],
+                [
+                    'type'           => 'text',
+                    'text'           => '{{price}}',
+                    'left'           => 514.15,
+                    'top'            => 218.66,
+                    'fontSize'       => 18,
+                    'fontFamily'     => 'TW Cen MT',
+                    'fontWeight'     => 'normal',
+                    'fontStyle'      => 'normal',
+                    'fill'           => '#1e293b',
+                    'textAlign'      => 'right',
+                    'styles'         => (object)[],
+                    'placeholderKey' => 'price',
+                    'headerLevel'    => 0,
+                ],
+                [
+                    'type'           => 'text',
+                    'text'           => '{{origin}}',
+                    'left'           => 78,
+                    'top'            => 264,
+                    'fontSize'       => 18,
+                    'fontFamily'     => 'TW Cen MT',
+                    'fontWeight'     => 'normal',
+                    'fontStyle'      => 'normal',
+                    'fill'           => '#1e293b',
+                    'textAlign'      => 'left',
+                    'styles'         => (object)[],
+                    'placeholderKey' => 'origin',
+                    'headerLevel'    => 0,
+                ],
+            ],
+        ];
+    }
+
     public function __construct() {
         // Core admin hooks.
         add_action('admin_menu',            [$this, 'add_menu_page']);
@@ -214,10 +336,11 @@ jQuery(function($) {
 
             // Pass PHP-side data to the JavaScript canvas editor.
             wp_localize_script('owm-admin-pdf-canvas', 'owmTemplateData', [
-                'template' => get_option('owm_pdf_template', ''), // existing template JSON (may be empty)
-                'ajaxUrl'  => admin_url('admin-ajax.php'),
-                'nonce'    => wp_create_nonce('owm_generate_pdf_nonce'),
-                'fontUrl'  => plugin_dir_url(dirname(__DIR__, 1)) . 'assets/fonts/tw-cen-mt-regular.ttf',
+                'template'        => get_option('owm_pdf_template', ''), // existing template JSON (may be empty)
+                'defaultTemplate' => wp_json_encode(self::default_template()),
+                'ajaxUrl'         => admin_url('admin-ajax.php'),
+                'nonce'           => wp_create_nonce('owm_generate_pdf_nonce'),
+                'fontUrl'         => plugin_dir_url(dirname(__DIR__, 1)) . 'assets/fonts/tw-cen-mt-regular.ttf',
             ]);
         }
     }

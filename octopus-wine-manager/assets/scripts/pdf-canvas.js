@@ -10,40 +10,11 @@ const SNAP_PX    = 8;
 /* ─── Default template ───────────────────────────────────────────────── */
 
 function applyDefaultTemplate() {
-  // Remove all user-placed objects, keep decorations
-  canvas.getObjects('text')
-    .filter(o => !o.excludeFromExport)
-    .forEach(o => canvas.remove(o));
-  canvas.getObjects('line')
-    .filter(o => !o.excludeFromExport)
-    .forEach(o => canvas.remove(o));
-
-  const fields = [
-    { key: 'category', level: 1, left: 234.86,                   top: 24,             fontSize: 28, fontWeight: 'normal',   fontStyle: 'normal', fill: '#1e293b', textAlign: 'center' },
-    { key: 'country',   level: 2, left: 80,                   top: 90,             fontSize: 24, fontWeight: 'bold',   fontStyle: 'normal', fill: '#334155', textAlign: 'left' },
-    { key: 'region',   level: 3, left: 80,                   top: 154,            fontSize: 18, fontWeight: 'normal', fontStyle: 'italic', fill: '#64748b', textAlign: 'left' },
-    { key: 'wine',     level: 0, left: 80,                   top: 223.18, fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
-    { key: 'vintage',  level: 0, left: MARGIN_LEFT,                   top: 223.18, fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
-    { key: 'price',    level: 0, left: 527.45,  top: 223.18, fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'right' },
-    { key: 'origin',  level: 0, left: 80,  top: 261, fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
-  ];
-
-  fields.forEach(f => {
-    canvas.add(new fabric.Text('{{' + f.key + '}}', {
-      left: f.left, top: f.top,
-      fontFamily: 'TW Cen MT', fontSize: f.fontSize,
-      fontWeight: f.fontWeight, fontStyle: f.fontStyle,
-      fill: f.fill, textAlign: f.textAlign,
-      placeholderKey: f.key, headerLevel: f.level,
-      lockRotation: true, hasRotatingPoint: false,
-    }));
+  canvas.loadFromJSON(owmTemplateData.defaultTemplate, function () {
+    addDecorations();
+    canvas.discardActiveObject();
+    canvas.renderAll();
   });
-
-  snapGuides.forEach(g => canvas.bringToFront(g));
-  canvas.bringToFront(lblHeader);
-  canvas.bringToFront(lblRow);
-  canvas.discardActiveObject();
-  canvas.renderAll();
 }
 
 /* ─── Custom font preload ────────────────────────────────────────────── */
@@ -422,11 +393,15 @@ document.addEventListener('keydown', e => {
 document.getElementById('owm-btn-reset-default').addEventListener('click', function () {
   if (!confirm('Reset the template to the default layout? This will overwrite your current template.')) return;
 
-  applyDefaultTemplate();
+  canvas.loadFromJSON(owmTemplateData.defaultTemplate, function () {
+    addDecorations();
+    canvas.discardActiveObject();
+    canvas.renderAll();
 
-  document.getElementById('owm_pdf_template_data').value =
-    JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel']));
-  document.getElementById('owm-pdf-template-form').submit();
+    document.getElementById('owm_pdf_template_data').value =
+      JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel']));
+    document.getElementById('owm-pdf-template-form').submit();
+  });
 });
 
 /* ─── Save ───────────────────────────────────────────────────────────── */
