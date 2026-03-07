@@ -16,10 +16,8 @@ class ProductDTO {
     public $productGroupID;
     public $productGroupName;
     public $price;
-    public $vatPercent;
     public $storageLocation;
     public $quantity;
-    public $costPrice;
 
     /**
      * Keyed map of attribute name → value (string) or values (string[]).
@@ -35,12 +33,11 @@ class ProductDTO {
      */
     public function __construct($data) {
         $this->id               = $data['ID']              ?? null;
+        $this->name             = $data['name']            ?? '';
         $this->productGroupID   = $data['ProductGroupID']  ?? null;
         $this->productGroupName = $data['productGroupName'] ?? null;
         $this->price            = $data['Price']           ?? 0.0;
-        $this->vatPercent       = $data['VatPercent']      ?? 0.0;
         $this->storageLocation  = $data['StorageLocation'] ?? null;
-        $this->costPrice        = $data['CostPrice']       ?? 0.0;
 
         // Flatten the Attributes array into a name-keyed map.
         // If the same attribute name appears more than once, upgrade the value

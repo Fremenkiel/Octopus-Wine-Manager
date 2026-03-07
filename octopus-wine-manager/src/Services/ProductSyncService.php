@@ -110,7 +110,6 @@ class ProductSyncService {
             // Store core product fields.
             update_post_meta($post_id, '_owm_product_id',         $dto->id);
             update_post_meta($post_id, '_owm_price',              $dto->price);
-            update_post_meta($post_id, '_owm_vat_percent',        $dto->vatPercent);
             update_post_meta($post_id, '_owm_quantity',           $dto->quantity);
             update_post_meta($post_id, '_owm_storage_location',   sanitize_text_field($dto->storageLocation ?? ''));
             update_post_meta($post_id, '_owm_product_group_name', sanitize_text_field($dto->productGroupName ?? ''));
@@ -253,7 +252,7 @@ class ProductSyncService {
      * @return int|null
      */
     private function remove_wine($post_id): void {
-        wp_remote_post($post_id);
+        wp_delete_post($post_id);
         delete_post_meta($post_id, '_owm_product_id');
         delete_post_meta($post_id, '_owm_price');
         delete_post_meta($post_id, '_owm_vat_percent');
