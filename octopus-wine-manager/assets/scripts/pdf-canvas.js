@@ -19,13 +19,13 @@ function applyDefaultTemplate() {
     .forEach(o => canvas.remove(o));
 
   const fields = [
-    { key: 'category', level: 1, left: 234.86,                   top: 24,             fontSize: 24, fontWeight: 'bold',   fontStyle: 'normal', fill: '#1e293b', textAlign: 'center' },
-    { key: 'country',   level: 2, left: 80,                   top: 90,             fontSize: 16, fontWeight: 'bold',   fontStyle: 'normal', fill: '#334155', textAlign: 'left' },
-    { key: 'region',   level: 3, left: 80,                   top: 154,            fontSize: 13, fontWeight: 'normal', fontStyle: 'italic', fill: '#64748b', textAlign: 'left' },
-    { key: 'wine',     level: 0, left: 80,                   top: 223.18, fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
-    { key: 'vintage',  level: 0, left: MARGIN_LEFT,                   top: 223.18, fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
-    { key: 'price',    level: 0, left: 527.45,  top: 223.18, fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'right' },
-    { key: 'origin',  level: 0, left: 80,  top: 261, fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
+    { key: 'category', level: 1, left: 234.86,                   top: 24,             fontSize: 28, fontWeight: 'normal',   fontStyle: 'normal', fill: '#1e293b', textAlign: 'center' },
+    { key: 'country',   level: 2, left: 80,                   top: 90,             fontSize: 24, fontWeight: 'bold',   fontStyle: 'normal', fill: '#334155', textAlign: 'left' },
+    { key: 'region',   level: 3, left: 80,                   top: 154,            fontSize: 18, fontWeight: 'normal', fontStyle: 'italic', fill: '#64748b', textAlign: 'left' },
+    { key: 'wine',     level: 0, left: 80,                   top: 223.18, fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
+    { key: 'vintage',  level: 0, left: MARGIN_LEFT,                   top: 223.18, fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
+    { key: 'price',    level: 0, left: 527.45,  top: 223.18, fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'right' },
+    { key: 'origin',  level: 0, left: 80,  top: 261, fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', fill: '#1e293b', textAlign: 'left' },
   ];
 
   fields.forEach(f => {

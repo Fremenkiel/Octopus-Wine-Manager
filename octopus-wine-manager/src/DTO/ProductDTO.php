@@ -86,4 +86,8 @@ class ProductDTO {
         if ($value === null) return [];
         return is_array($value) ? $value : [$value];
     }
+
+    public function hasAttributes() {
+      return !empty($this->attributes ?? []);
+    }
 }

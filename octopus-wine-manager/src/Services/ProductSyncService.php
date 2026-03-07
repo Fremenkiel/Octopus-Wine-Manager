@@ -47,7 +47,7 @@ class ProductSyncService {
      * @param string $lang  Language code for product names/descriptions (default 'en').
      * @return int|false    Number of products synced, or false on error.
      */
-    public function sync_all_products($lang = 'en') {
+    public function sync_all_products($lang = 'en'): int | false {
         try {
             $products   = $this->client->getProducts($lang);
             $sync_count = 0;
@@ -84,7 +84,7 @@ class ProductSyncService {
      *
      * @param ProductDTO $dto  The product data transfer object to persist.
      */
-    private function sync_single_product(ProductDTO $dto) {
+    private function sync_single_product(ProductDTO $dto): void {
         // Check whether this product already exists in WordPress.
         $existing_post_id = $this->get_post_id_by_api_id($dto->id);
 
@@ -93,6 +93,13 @@ class ProductSyncService {
             'post_status' => 'publish',
             'post_type'   => 'owm_product',
         ];
+
+        if (!$dto->hasAttributes()) {
+          if(isset($existing_post_id)) {
+            $this->remove_wine($existing_post_id);
+          }
+          return;
+        }
 
         // Update or insert the post as appropriate.
         $post_id = $existing_post_id
@@ -111,78 +118,108 @@ class ProductSyncService {
             // Store named API attributes as individual meta keys for easy querying.
             $country = $dto->getAttributeValues('Country');
             if ($country) {
-                update_post_meta($post_id, '_owm_country_origin', sanitize_text_field(implode(', ', $country)));
+              update_post_meta($post_id, '_owm_country_origin', sanitize_text_field(implode(', ', $country)));
+            } else {
+              delete_post_meta($post_id, '_owm_country_origin');
             }
 
             $region = $dto->getAttributeValues('Region');
             if ($region) {
-                update_post_meta($post_id, '_owm_region', sanitize_text_field(implode(', ', $region)));
+              update_post_meta($post_id, '_owm_region', sanitize_text_field(implode(', ', $region)));
+            } else {
+              delete_post_meta($post_id, '_owm_region');
             }
 
             $commune = $dto->getAttributeValues('Commune');
             if ($commune) {
-                update_post_meta($post_id, '_owm_commune', sanitize_text_field(implode(', ', $commune)));
+              update_post_meta($post_id, '_owm_commune', sanitize_text_field(implode(', ', $commune)));
+            } else {
+              delete_post_meta($post_id, '_owm_commune');
             }
 
             $village = $dto->getAttributeValues('Village');
             if ($village) {
-                update_post_meta($post_id, '_owm_village', sanitize_text_field(implode(', ', $village)));
+              update_post_meta($post_id, '_owm_village', sanitize_text_field(implode(', ', $village)));
+            } else {
+              delete_post_meta($post_id, '_owm_village');
             }
 
             $wine = $dto->getAttributeValues('Wine');
             if ($wine) {
-                update_post_meta($post_id, '_owm_wine', sanitize_text_field(implode(', ', $wine)));
+              update_post_meta($post_id, '_owm_wine', sanitize_text_field(implode(', ', $wine)));
+            } else {
+              delete_post_meta($post_id, '_owm_wine');
             }
 
             $vintage = $dto->getAttributeValues('Vintage');
             if ($vintage) {
-                update_post_meta($post_id, '_owm_vintage', sanitize_text_field(implode(', ', $vintage)));
+              update_post_meta($post_id, '_owm_vintage', sanitize_text_field(implode(', ', $vintage)));
+            } else {
+              delete_post_meta($post_id, '_owm_vintage');
             }
 
             $producer = $dto->getAttributeValues('Producer');
             if ($producer) {
-                update_post_meta($post_id, '_owm_producer', sanitize_text_field(implode(', ', $producer)));
+              update_post_meta($post_id, '_owm_producer', sanitize_text_field(implode(', ', $producer)));
+            } else {
+              delete_post_meta($post_id, '_owm_producer');
             }
 
             $alcohol = $dto->getAttributeValues('Alcohol');
             if ($alcohol) {
-                update_post_meta($post_id, '_owm_alcohol', sanitize_text_field(implode(', ', $alcohol)));
+              update_post_meta($post_id, '_owm_alcohol', sanitize_text_field(implode(', ', $alcohol)));
+            } else {
+              delete_post_meta($post_id, '_owm_alcohol');
             }
 
             $appellation = $dto->getAttributeValues('Appellation');
             if ($appellation) {
-                update_post_meta($post_id, '_owm_appellation', sanitize_text_field(implode(', ', $appellation)));
+              update_post_meta($post_id, '_owm_appellation', sanitize_text_field(implode(', ', $appellation)));
+            } else {
+              delete_post_meta($post_id, '_owm_appellation');
             }
 
             $classification = $dto->getAttributeValues('Classification');
             if ($classification) {
-                update_post_meta($post_id, '_owm_classification', sanitize_text_field(implode(', ', $classification)));
+              update_post_meta($post_id, '_owm_classification', sanitize_text_field(implode(', ', $classification)));
+            } else {
+              delete_post_meta($post_id, '_owm_classification');
             }
 
             // Volume is a raw string like '0,75' — normalise to decimal point before storage.
             $volume = $dto->getAttribute('Volume (L)');
             if ($volume) {
-                update_post_meta($post_id, '_owm_volume', sanitize_text_field(str_replace(',', '.', $volume)));
+              update_post_meta($post_id, '_owm_volume', sanitize_text_field(str_replace(',', '.', $volume)));
+            } else {
+              delete_post_meta($post_id, '_owm_volume');
             }
 
             $subRegion = $dto->getAttributeValues('Sub-Region');
             if ($subRegion) {
-                update_post_meta($post_id, '_owm_sub_region', sanitize_text_field(implode(', ', $subRegion)));
+              update_post_meta($post_id, '_owm_sub_region', sanitize_text_field(implode(', ', $subRegion)));
+            } else {
+              delete_post_meta($post_id, '_owm_sub_region');
             }
 
             $vineyard = $dto->getAttributeValues('Vineyard');
             if ($vineyard) {
-                update_post_meta($post_id, '_owm_vineyard', sanitize_text_field(implode(', ', $vineyard)));
+              update_post_meta($post_id, '_owm_vineyard', sanitize_text_field(implode(', ', $vineyard)));
+            } else {
+              delete_post_meta($post_id, '_owm_vineyard');
             }
 
             $sweetness = $dto->getAttributeValues('Sweetness');
             if ($sweetness) {
-                update_post_meta($post_id, '_owm_sweetness', sanitize_text_field(implode(', ', $sweetness)));
+              update_post_meta($post_id, '_owm_sweetness', sanitize_text_field(implode(', ', $sweetness)));
+            } else {
+              delete_post_meta($post_id, '_owm_sweetness');
             }
 
             $grapeValues = $dto->getAttributeValues('Grape');
-            if (!empty($grapeValues)) {
-                update_post_meta($post_id, '_owm_grape', sanitize_text_field(implode(', ', $grapeValues)));
+            if ($grapeValues) {
+              update_post_meta($post_id, '_owm_grape', sanitize_text_field(implode(', ', $grapeValues)));
+            } else {
+              delete_post_meta($post_id, '_owm_grape');
             }
 
             // Also store the full raw attributes array for debugging/future use.
@@ -197,7 +234,7 @@ class ProductSyncService {
      * @param int|string $api_id  The HotelBoss product ID (_owm_product_id meta value).
      * @return int|null
      */
-    private function get_post_id_by_api_id($api_id) {
+    private function get_post_id_by_api_id($api_id): int | null {
         $query = new \WP_Query([
             'post_type'      => $this->post_type,
             'meta_key'       => '_owm_product_id',
@@ -207,5 +244,37 @@ class ProductSyncService {
         ]);
 
         return $query->have_posts() ? $query->posts[0] : null;
+    }
+
+    /**
+     * Removes all saved post meta and post related to a wine.
+     *
+     * @param int|string $post_id  WP post id.
+     * @return int|null
+     */
+    private function remove_wine($post_id): void {
+        wp_remote_post($post_id);
+        delete_post_meta($post_id, '_owm_product_id');
+        delete_post_meta($post_id, '_owm_price');
+        delete_post_meta($post_id, '_owm_vat_percent');
+        delete_post_meta($post_id, '_owm_quantity');
+        delete_post_meta($post_id, '_owm_storage_location');
+        delete_post_meta($post_id, '_owm_product_group_name');
+        delete_post_meta($post_id, '_owm_country_origin');
+        delete_post_meta($post_id, '_owm_region');
+        delete_post_meta($post_id, '_owm_commune');
+        delete_post_meta($post_id, '_owm_village');
+        delete_post_meta($post_id, '_owm_wine');
+        delete_post_meta($post_id, '_owm_vintage');
+        delete_post_meta($post_id, '_owm_producer');
+        delete_post_meta($post_id, '_owm_alcohol');
+        delete_post_meta($post_id, '_owm_appellation');
+        delete_post_meta($post_id, '_owm_classification');
+        delete_post_meta($post_id, '_owm_volume');
+        delete_post_meta($post_id, '_owm_sub_region');
+        delete_post_meta($post_id, '_owm_vineyard');
+        delete_post_meta($post_id, '_owm_sweetness');
+        delete_post_meta($post_id, '_owm_grape');
+        delete_post_meta($post_id, '_owm_all_attributes');
     }
 }
