@@ -79,6 +79,10 @@ class PdfGenerator {
             ],
         ]);
 
+        $mpdf->simpleTables = true;
+        $mpdf->shrink_tables_to_fit = 1;
+        $mpdf->keep_table_proportions = true;
+
         // Pre-register one named HTML header per category via the mPDF PHP API.
         $h1_style = $this->header_css($parsed['headers'][1]);
         foreach ($this->get_sorted_categories($wines) as $category) {
@@ -96,6 +100,7 @@ class PdfGenerator {
 
         // Stream as a download; mPDF sends the correct Content-Type header.
         $mpdf->Output('wine-list.pdf', \Mpdf\Output\Destination::DOWNLOAD);
+        var_dump($html);
     }
 
     /**
@@ -237,7 +242,6 @@ class PdfGenerator {
             ['key' => 'sku',   'x' => 476, 'width' => '20%', 'fontSize' => 11, 'textAlign' => 'right'],
         ];
 
-        // ✅ FIX: always return rows grouped by y-key (not a flat columns array)
         if (!$template || empty($template['objects'])) {
             return ['rows' => ['0' => $default_columns], 'headers' => self::HEADER_DEFAULTS];
         }
@@ -304,12 +308,19 @@ class PdfGenerator {
 
     // ── Rendering ────────────────────────────────────────────────────────────
 
+    /**
+     * Renders the html
+     * @param array $wines Wines
+     * @param array $rows Table rows
+     * @param array $headers Headers
+     * @return string
+     */
     private function render_html(array $wines, array $rows, array $headers): string {
         if (empty($wines)) {
             return '<html><body style="font-family:Arial;padding:40px"><p>No products found. Please sync from the API first.</p></body></html>';
         }
 
-        // ✅ GUARD: if rows is accidentally a flat columns array, wrap it.
+        // if rows is accidentally a flat columns array, wrap it.
         if (isset($rows[0]) && is_array($rows[0]) && isset($rows[0]['key'])) {
             $rows = ['0' => $rows];
         }
@@ -486,7 +497,7 @@ class PdfGenerator {
 <style>
 body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
 /* Table */
-table { width: 100%; border-collapse: collapse; margin: 5px 0; }
+table { width: 100%; border-collapse: collapse; /*margin: 5px 0;*/ }
 </style>
 </head>
 <body>
@@ -496,8 +507,11 @@ table { width: 100%; border-collapse: collapse; margin: 5px 0; }
 HTML;
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
+    /**
+     * Generates the header styles
+     * @param array $h Header entity
+     * @return string
+     */
     private function header_css(array $h): string {
         $ff = $this->safe_font($h['fontFamily'] ?? 'Arial');
         $fs = $h['fontSize']   ?? '14px';
@@ -508,30 +522,35 @@ HTML;
         $ml = $h['marginLeft'] ?? 0;
 
         $css = "font-family:{$ff};font-size:{$fs};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};";
-        $css .= $ml === 'unset' ? '' : "margin-left:{$ml};";
+        // $css .= $ml === 'unset' ? '' : "margin-left:{$ml};";
         return $css;
     }
 
+    /**
+     * Formats special fields.
+     * @param array $wine The wine entity
+     * @param string $key The column name
+     * @return string
+     */
     private function format_field(array $wine, string $key): string {
-    $value = $wine[$key] ?? '';
+      $value = $wine[$key] ?? '';
 
-    // ✅ Hvis template bruger "name" men den er tom, så brug "wine"
-    if ($key === 'name' && ($value === '' || $value === null)) {
+      if ($key === 'name' && ($value === '' || $value === null)) {
         $value = $wine['wine'] ?? '';
-    }
+      }
 
-    // ✅ Hvis template bruger "wine" men den er tom, så brug "name"
-    if ($key === 'wine' && ($value === '' || $value === null)) {
-        $value = $wine['name'] ?? '';
-    }
-
-    if ($key === 'price' && $value !== '') {
+      if ($key === 'price' && $value !== '') {
         return number_format((float) $value, 2) . ' DKK';
-    }
+      }
 
-    return (string) $value;
-	}
+      return (string) $value;
+	  }
 
+    /**
+     * Makes sure that the font is included in the plugin.
+     * @param string $font
+     * @return string
+     */
     private function safe_font(string $font): string {
         $custom = ['TW Cen MT' => 'twcenmt'];
         if (isset($custom[$font])) return $custom[$font];
@@ -540,6 +559,11 @@ HTML;
         return in_array($font, $allowed, true) ? $font : 'Arial';
     }
 
+    /**
+     * Makes sure that the color is usable in the PDF.
+     * @param string $color
+     * @return string
+     */
     private function safe_color(string $color): string {
         if (preg_match('/^#[0-9a-fA-F]{3,6}$/', $color)) return $color;
         if (preg_match('/^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/i', $color)) return $color;

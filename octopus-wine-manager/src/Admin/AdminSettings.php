@@ -121,8 +121,9 @@ class AdminSettings {
                 [
                     'type'           => 'text',
                     'text'           => '{{price}}',
-                    'left'           => 514.15,
+                    'left'           => 481.5,
                     'top'            => 218.66,
+                    'width'          => 70.53,
                     'fontSize'       => 18,
                     'fontFamily'     => 'TW Cen MT',
                     'fontWeight'     => 'normal',
