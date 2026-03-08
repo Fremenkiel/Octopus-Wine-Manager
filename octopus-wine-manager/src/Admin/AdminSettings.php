@@ -46,13 +46,13 @@ class AdminSettings {
                 [
                     'type'           => 'text',
                     'text'           => '{{category}}',
-                    'left'           => 228,
+                    'left'           => 218.15,
                     'top'            => 24,
-                    'fontSize'       => 28,
+                    'fontSize'       => 32,
                     'fontFamily'     => 'TW Cen MT',
                     'fontWeight'     => 'normal',
                     'fontStyle'      => 'normal',
-                    'fill'           => '#1e293b',
+                    'fill'           => '#0a0a0a',
                     'textAlign'      => 'center',
                     'styles'         => (object)[],
                     'placeholderKey' => 'category',
@@ -63,11 +63,11 @@ class AdminSettings {
                     'text'           => '{{country}}',
                     'left'           => 78,
                     'top'            => 90,
-                    'fontSize'       => 24,
+                    'fontSize'       => 28,
                     'fontFamily'     => 'TW Cen MT',
                     'fontWeight'     => 'bold',
                     'fontStyle'      => 'normal',
-                    'fill'           => '#334155',
+                    'fill'           => '#0a0a0a',
                     'textAlign'      => 'left',
                     'styles'         => (object)[],
                     'placeholderKey' => 'country',
@@ -78,11 +78,11 @@ class AdminSettings {
                     'text'           => '{{region}}',
                     'left'           => 78,
                     'top'            => 154,
-                    'fontSize'       => 18,
+                    'fontSize'       => 20,
                     'fontFamily'     => 'TW Cen MT',
                     'fontWeight'     => 'normal',
                     'fontStyle'      => 'italic',
-                    'fill'           => '#64748b',
+                    'fill'           => '#333333',
                     'textAlign'      => 'left',
                     'styles'         => (object)[],
                     'placeholderKey' => 'region',
@@ -97,7 +97,7 @@ class AdminSettings {
                     'fontFamily'     => 'TW Cen MT',
                     'fontWeight'     => 'normal',
                     'fontStyle'      => 'normal',
-                    'fill'           => '#1e293b',
+                    'fill'           => '#0a0a0a',
                     'textAlign'      => 'left',
                     'styles'         => (object)[],
                     'placeholderKey' => 'vintage',
@@ -112,23 +112,23 @@ class AdminSettings {
                     'fontFamily'     => 'TW Cen MT',
                     'fontWeight'     => 'normal',
                     'fontStyle'      => 'normal',
-                    'fill'           => '#1e293b',
+                    'fill'           => '#0a0a0a',
                     'textAlign'      => 'left',
                     'styles'         => (object)[],
                     'placeholderKey' => 'wine',
                     'headerLevel'    => 0,
                 ],
                 [
-                    'type'           => 'text',
+                    'type'           => 'textbox',
                     'text'           => '{{price}}',
-                    'left'           => 481.5,
+                    'left'           => 483.5,
                     'top'            => 218.66,
-                    'width'          => 70.53,
+                    'width'          => 90.5,
                     'fontSize'       => 18,
                     'fontFamily'     => 'TW Cen MT',
                     'fontWeight'     => 'normal',
                     'fontStyle'      => 'normal',
-                    'fill'           => '#1e293b',
+                    'fill'           => '#0a0a0a',
                     'textAlign'      => 'right',
                     'styles'         => (object)[],
                     'placeholderKey' => 'price',
@@ -143,7 +143,7 @@ class AdminSettings {
                     'fontFamily'     => 'TW Cen MT',
                     'fontWeight'     => 'normal',
                     'fontStyle'      => 'normal',
-                    'fill'           => '#1e293b',
+                    'fill'           => '#0a0a0a',
                     'textAlign'      => 'left',
                     'styles'         => (object)[],
                     'placeholderKey' => 'origin',
@@ -165,6 +165,9 @@ class AdminSettings {
 
         // Admin action: direct download link in the sidebar menu and settings page.
         add_action('admin_action_owm_download_pdf', [$this, 'handle_download_pdf_direct']);
+
+        // Admin action: direct view html in the sidebar menu and settings page.
+        add_action('admin_action_owm_view_html', [$this, 'handle_view_html_direct']);
 
         // Scheduled inventory sync callback (registered here as a fallback; the
         // hourly event is also scheduled in octopus-wine-managment.php).
@@ -516,6 +519,13 @@ jQuery(function($) {
                             </svg>
                             Download PDF
                         </a>
+                        <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?action=owm_view_html'), 'owm_view_html_direct')); ?>"
+                           class="owm-btn owm-btn--dark">
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                                <path d="M6.5 1v7.5M4 6l2.5 2.5L9 6M1.5 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            View HTML
+                        </a>
                         <a href="<?php echo esc_url(admin_url('admin.php?page=owm-pdf-template')); ?>" class="owm-text-link">
                             Edit template &rarr;
                         </a>
@@ -818,6 +828,34 @@ jQuery(function($) {
             $generator->generate(); // uses the stored owm_pdf_template option
         } catch (\Exception $e) {
             wp_die('PDF generation failed: ' . esc_html($e->getMessage()));
+        }
+
+        exit;
+    }
+
+    /**
+     * Admin action handler: admin_action_owm_view_html
+     *
+     * Triggered by the nonce-protected URL used in
+     * Export card.
+     * Verifies capability and nonce before generating.
+     */
+    public function handle_view_html_direct(): void {
+        if (!current_user_can('owm_manage')) {
+            wp_die('Unauthorized', '', ['response' => 403]);
+        }
+        check_admin_referer('owm_view_html_direct');
+
+        // Flush output buffers before mPDF writes its headers.
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        try {
+            $generator = new PdfGenerator();
+            $generator->generate_html(); // uses the stored owm_pdf_template option
+        } catch (\Exception $e) {
+            wp_die('HTML generation failed: ' . esc_html($e->getMessage()));
         }
 
         exit;

@@ -179,7 +179,7 @@ canvas.on('object:moving', function (e) {
   }
 
   // ── Element-to-element snaps ──────────────────────────────────────
-  const others = canvas.getObjects('text').filter(o => o !== obj && !o.excludeFromExport);
+  const others = canvas.getObjects().filter(o => (o.type === 'text' || o.type === 'textbox') && o !== obj && !o.excludeFromExport);
 
   // Recompute positions after fixed snaps may have moved the object
   const el  = obj.left;
@@ -399,7 +399,7 @@ document.getElementById('owm-btn-reset-default').addEventListener('click', funct
     canvas.renderAll();
 
     document.getElementById('owm_pdf_template_data').value =
-      JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel']));
+      JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel', 'width']));
     document.getElementById('owm-pdf-template-form').submit();
   });
 });
@@ -408,7 +408,7 @@ document.getElementById('owm-btn-reset-default').addEventListener('click', funct
 
 document.getElementById('owm-pdf-template-form').addEventListener('submit', () => {
   document.getElementById('owm_pdf_template_data').value =
-    JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel']));
+    JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel', 'width']));
 });
 
 /* ─── Generate PDF ───────────────────────────────────────────────────── */
@@ -428,7 +428,7 @@ document.getElementById('owm-generate-pdf').addEventListener('click', function (
     body: new URLSearchParams({
       action:   'owm_generate_pdf',
       nonce:    owmTemplateData.nonce,
-      template: JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel'])),
+      template: JSON.stringify(canvas.toJSON(['placeholderKey', 'headerLevel', 'width'])),
     }),
   })
     .then(res => {

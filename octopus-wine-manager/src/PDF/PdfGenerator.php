@@ -100,7 +100,35 @@ class PdfGenerator {
 
         // Stream as a download; mPDF sends the correct Content-Type header.
         $mpdf->Output('wine-list.pdf', \Mpdf\Output\Destination::DOWNLOAD);
-        var_dump($html);
+    }
+
+    /**
+     * Generate and stream the wine-list into html.
+     *
+     * @param string $template_json Optional raw JSON string from the canvas editor.
+     *                              When empty the value stored in the 'owm_pdf_template'
+     *                              WordPress option is used instead.
+     */
+    public function generate_html(string $template_json = ''): void {
+        // Prefer the caller-supplied JSON; fall back to the saved option.
+        if ($template_json === '') {
+            $template_json = get_option('owm_pdf_template', '');
+        }
+        $template = $template_json ? json_decode($template_json, true) : null;
+
+        // Parse the template into row column definitions and header style arrays.
+        $parsed   = $this->extract_template($template);
+
+        // Fetch all in-stock wines from the database.
+        $wines    = $this->get_all_wines();
+
+        // Pre-register one named HTML header per category via the mPDF PHP API.
+        $h1_style = $this->header_css($parsed['headers'][1]);
+        
+        // Build the full HTML document and hand it to mPDF.
+        $html = $this->render_html($wines, $parsed['rows'], $parsed['headers']);
+
+        echo $html;
     }
 
     /**
@@ -270,7 +298,6 @@ class PdfGenerator {
                     'textAlign'  => $obj['textAlign']   ?? self::HEADER_DEFAULTS[$level]['textAlign'],
                     'x'          => $x,
                     'y'          => (float) ($obj['top'] ?? 0),
-                    'marginLeft' => $ta == 'center' ? 'unset' : $ml,
                 ];
             } else {
                 $y = (float) ($obj['top'] ?? 0);
@@ -284,6 +311,7 @@ class PdfGenerator {
                     'fontStyle'  => $obj['fontStyle']  ?? 'normal',
                     'fill'       => $obj['fill']        ?? '#1e293b',
                     'textAlign'  => $obj['textAlign']   ?? 'left',
+                    'width'      => isset($obj['width']) ? (float) $obj['width'] : null,
                 ];
             }
         }
@@ -295,8 +323,8 @@ class PdfGenerator {
                 usort($row, fn($a, $b) => $a['x'] <=> $b['x']);
                 $count = count($row);
                 for ($i = 0; $i < $count; $i++) {
-                    $next_x           = ($i + 1 < $count) ? (float) $row[$i + 1]['x'] : self::CANVAS_WIDTH;
-                    $pct              = ($next_x - (float) $row[$i]['x']) / self::CANVAS_WIDTH * 100;
+$next_x           = ($i + 1 < $count) ? (float) $row[$i + 1]['x'] : self::CANVAS_WIDTH;
+$pct              = ($next_x - (float) $row[$i]['x']) / self::CANVAS_WIDTH * 100;
                     $row[$i]['width'] = max(round($pct, 1), 5) . '%';
                 }
                 $rows[$key] = $row;
@@ -497,7 +525,7 @@ class PdfGenerator {
 <style>
 body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
 /* Table */
-table { width: 100%; border-collapse: collapse; /*margin: 5px 0;*/ }
+table { width: 100%; border-collapse: collapse; margin: 5px 0; }
 </style>
 </head>
 <body>
@@ -519,10 +547,8 @@ HTML;
         $fi = $h['fontStyle']  ?? 'normal';
         $fc = $this->safe_color($h['fill'] ?? '#1e293b');
         $ta = in_array($h['textAlign'] ?? 'left', ['left', 'center', 'right']) ? $h['textAlign'] : 'left';
-        $ml = $h['marginLeft'] ?? 0;
 
         $css = "font-family:{$ff};font-size:{$fs};font-weight:{$fw};font-style:{$fi};color:{$fc};text-align:{$ta};";
-        // $css .= $ml === 'unset' ? '' : "margin-left:{$ml};";
         return $css;
     }
 
