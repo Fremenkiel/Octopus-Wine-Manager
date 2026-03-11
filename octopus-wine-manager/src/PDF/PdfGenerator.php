@@ -83,6 +83,11 @@ class PdfGenerator {
         $mpdf->shrink_tables_to_fit = 1;
         $mpdf->keep_table_proportions = true;
 
+        $mpdf->SetHTMLFooter('
+          <div class="footer">
+            {PAGENO}
+          </div>');
+
         // Pre-register one named HTML header per category via the mPDF PHP API.
         $h1_style = $this->header_css($parsed['headers'][1]);
         foreach ($this->get_sorted_categories($wines) as $category) {
@@ -526,6 +531,8 @@ $pct              = ($next_x - (float) $row[$i]['x']) / self::CANVAS_WIDTH * 100
 body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
 /* Table */
 table { width: 100%; border-collapse: collapse; margin: 5px 0; }
+/* Footer */
+.footer { text-align: center; font-size: 14px; color: #111111; font-family: $headers ? $headers[1]['fontFamily'] : 'Arial';}
 </style>
 </head>
 <body>
