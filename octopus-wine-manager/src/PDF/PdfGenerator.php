@@ -495,7 +495,7 @@ $pct              = ($next_x - (float) $row[$i]['x']) / self::CANVAS_WIDTH * 100
                             if ($is_first_region) {
                                 $h2_prefix = $h2_start > 0 ? sprintf('<td colspan="%d"></td>', $h2_start) : '';
                                 $body .= sprintf(
-                                    '<tr>%s<td colspan="%d" style="padding:16px 8px 3px;%s">%s</td></tr>',
+                                    '<tr>%s<td colspan="%d" style="padding:32px 8px 3px;%s">%s</td></tr>',
                                     $h2_prefix, $ncols - $h2_start, $h2_css, esc_html($country)
                                 );
                             }
