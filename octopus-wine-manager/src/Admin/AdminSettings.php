@@ -248,7 +248,6 @@ class AdminSettings {
         register_setting($this->option_group, 'owm_username');
         register_setting($this->option_group, 'owm_password');
         register_setting($this->option_group, 'owm_selected_hotel_id');
-        register_setting($this->option_group, 'owm_pdf_template');
         register_setting($this->option_group, 'owm_type_order', [
             // Sanitize before storage: ensure it's an array of plain strings,
             // then JSON-encode so the order is preserved.

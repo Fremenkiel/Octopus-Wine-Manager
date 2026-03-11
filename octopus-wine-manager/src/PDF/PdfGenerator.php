@@ -69,7 +69,7 @@ class PdfGenerator {
             // Left margin is wider to accommodate a left-aligned page header.
             'margin_left'   => 30,
             'margin_right'  => 10,
-            'margin_top'    => 22,
+            'margin_top'    => 32,
             'margin_bottom' => 22,
             'tempDir'       => $temp_dir,
             'fontDir'       => [$font_dir],
@@ -97,11 +97,16 @@ class PdfGenerator {
             );
         }
 
-        // Build the full HTML document and hand it to mPDF.
-        $html = $this->render_html($wines, $parsed['rows'], $parsed['headers']);
+        // Write CSS first, then body content incrementally so Y-position can be
+        // checked before each H2 to detect top-of-page.
+        $h1_ff = $this->safe_font($parsed['headers'][1]['fontFamily'] ?? 'Arial');
+        $css = "body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
+                table { width: 100%; border-collapse: collapse; margin: 5px 0; }
+                .footer { text-align: center; font-size: 14px; color: #111111; font-family: {$h1_ff}; }";
 
         $mpdf->SetTitle('Wine List');
-        $mpdf->WriteHTML($html);
+        $mpdf->WriteHTML($css, \Mpdf\HTMLParserMode::HEADER_CSS);
+        $this->build_pdf_body($mpdf, $wines, $parsed['rows'], $parsed['headers']);
 
         // Stream as a download; mPDF sends the correct Content-Type header.
         $mpdf->Output('wine-list.pdf', \Mpdf\Output\Destination::DOWNLOAD);
@@ -342,6 +347,220 @@ $pct              = ($next_x - (float) $row[$i]['x']) / self::CANVAS_WIDTH * 100
     // ── Rendering ────────────────────────────────────────────────────────────
 
     /**
+     * Writes body content to mPDF incrementally (one country section at a time).
+     * Visual separation between countries is provided by a standalone spacer table
+     * written before each non-first country. If the spacer falls at the very bottom
+     * of a page mPDF leaves it there and the H2 starts the next page with no top
+     * padding — which is exactly correct. The H2 itself therefore never carries any
+     * top padding.
+     */
+    private function build_pdf_body(\Mpdf\Mpdf $mpdf, array $wines, array $rows, array $headers): void {
+        if (isset($rows[0]) && is_array($rows[0]) && isset($rows[0]['key'])) {
+            $rows = ['0' => $rows];
+        }
+
+        $h2_css = $this->header_css($headers[2]);
+        $h3_css = $this->header_css($headers[3]);
+
+        // Pre-compute layout values that are constant for the whole document.
+        $coltemplate = [];
+        foreach ($rows as $row) {
+            foreach ($row as $col) {
+                if (!in_array((string) $col['x'], $coltemplate, true)) {
+                    $coltemplate[] = (string) $col['x'];
+                }
+            }
+        }
+        ksort($coltemplate);
+
+        $ncols    = max(count($coltemplate), 1);
+        $h2_start = 0;
+        foreach ($coltemplate as $ci => $cx) {
+            if ((float) $cx <= (float) ($headers[2]['x'] ?? 0)) $h2_start = $ci;
+        }
+        $h3_start = 0;
+        foreach ($coltemplate as $ci => $cx) {
+            if ((float) $cx <= (float) ($headers[3]['x'] ?? 0)) $h3_start = $ci;
+        }
+
+        $price_min  = round(155 / self::CANVAS_WIDTH * 100, 1);
+        $row_widths = [];
+        foreach ($rows as $key => $row) {
+            $widths      = [];
+            $price_extra = 0.0;
+            foreach ($row as $i => $col) {
+                $raw = (float) ($col['width'] ?? 0);
+                if ($col['key'] === 'price' && $raw < $price_min) {
+                    $price_extra = $price_min - $raw;
+                    $widths[$i]  = $price_min;
+                } else {
+                    $widths[$i] = $raw;
+                }
+            }
+            if ($price_extra > 0) {
+                $other_total = 0.0;
+                foreach ($row as $i => $col) {
+                    if ($col['key'] !== 'price') $other_total += $widths[$i];
+                }
+                if ($other_total > 0) {
+                    foreach ($row as $i => $col) {
+                        if ($col['key'] !== 'price') {
+                            $widths[$i] = round($widths[$i] - ($widths[$i] / $other_total) * $price_extra, 1);
+                        }
+                    }
+                }
+            }
+            $drift = round(100.0 - array_sum($widths), 1);
+            if ($drift !== 0.0) {
+                foreach ($row as $i => $col) {
+                    if ($col['key'] !== 'price') {
+                        $widths[$i] = round($widths[$i] + $drift, 1);
+                        break;
+                    }
+                }
+            }
+            $row_widths[$key] = $widths;
+        }
+
+        $tree = [];
+        foreach ($wines as $wine) {
+            $tree[$wine['category']][$wine['country']][$wine['region'] ?: '__none__'][] = $wine;
+        }
+        $saved_order = json_decode(get_option('owm_type_order', '[]'), true) ?: [];
+        $order_map   = array_flip($saved_order);
+        uksort($tree, function ($a, $b) use ($order_map) {
+            $ia = $order_map[$a] ?? PHP_INT_MAX;
+            $ib = $order_map[$b] ?? PHP_INT_MAX;
+            if ($ia !== $ib) return $ia <=> $ib;
+            return strcasecmp($a, $b);
+        });
+
+        $first_category = true;
+        foreach ($tree as $category => $by_country) {
+            ksort($by_country);
+
+            // Emit the page-break and activate the running header for this category.
+            $break_html = '<sethtmlpageheader value="off"/>';
+            if (!$first_category) {
+                $break_html .= '<pagebreak />';
+            }
+            $first_category = false;
+            $break_html .= sprintf('<sethtmlpageheader name="cat_%s" value="on" show-this-page="1"/>', md5($category));
+            $mpdf->WriteHTML($break_html, \Mpdf\HTMLParserMode::HTML_BODY);
+
+            $first_country = true;
+            foreach ($by_country as $country => $by_region) {
+                ksort($by_region);
+
+                if (!$first_country) {
+                    // Spacer provides the 32 px gap between countries. If it ends up
+                    // at the bottom of a page mPDF keeps it there, so the H2 that
+                    // follows always starts a new page without any top padding.
+                    $mpdf->WriteHTML(
+                        '<table style="width:100%;border-collapse:collapse;margin:0;padding:0;"><tr><td style="height:32px;font-size:1px;">&nbsp;</td></tr></table>',
+                        \Mpdf\HTMLParserMode::HTML_BODY
+                    );
+                }
+                $first_country = false;
+
+                $mpdf->WriteHTML(
+                    $this->build_country_html(
+                        $country, $by_region, $rows, $h2_css, $h3_css,
+                        $coltemplate, $row_widths, $ncols, $h2_start, $h3_start, '0'
+                    ),
+                    \Mpdf\HTMLParserMode::HTML_BODY
+                );
+            }
+        }
+    }
+
+    /**
+     * Builds the HTML for a single country section (H2 + all its regions and wine rows).
+     */
+    private function build_country_html(
+        string $country,
+        array  $by_region,
+        array  $rows,
+        string $h2_css,
+        string $h3_css,
+        array  $coltemplate,
+        array  $row_widths,
+        int    $ncols,
+        int    $h2_start,
+        int    $h3_start,
+        string $h2_top_pad
+    ): string {
+        $html            = '';
+        $is_first_region = true;
+
+        foreach ($by_region as $region => $region_wines) {
+            usort($region_wines, function ($a, $b) {
+                foreach (['producer', 'sub_region', 'commune', 'village', 'volume'] as $key) {
+                    $cmp = strcasecmp($a[$key] ?? '', $b[$key] ?? '');
+                    if ($cmp !== 0) return $cmp;
+                }
+                return strcasecmp($a['name'], $b['name']);
+            });
+
+            foreach ($region_wines as $wine_idx => $wine) {
+                $wine_rows = '';
+                foreach ($rows as $key => $row) {
+                    $last_i     = count($row) - 1;
+                    $wine_rows .= '<tr>';
+                    foreach ($row as $i => $col) {
+                        $fs = isset($col['fontSize']) ? intval($col['fontSize']) . 'px' : '13px';
+                        $ff = $this->safe_font($col['fontFamily'] ?? 'Arial');
+                        $fw = ($col['fontWeight'] ?? '') === 'bold'   ? 'bold'   : 'normal';
+                        $fi = ($col['fontStyle']  ?? '') === 'italic' ? 'italic' : 'normal';
+                        $fc = $this->safe_color($col['fill'] ?? '#1e293b');
+                        $ta = in_array($col['textAlign'] ?? 'left', ['left', 'center', 'right'])
+                            ? ($col['textAlign'] ?? 'left') : 'left';
+                        $w  = $row_widths[$key][$i] . '%';
+                        $pr = ($i === $last_i) ? '0' : '8px';
+
+                        $span = array_search($col['x'], $coltemplate);
+                        if ($span !== $i) {
+                            $wine_rows .= sprintf('<td colspan="%d"></td>', $span);
+                        }
+                        $wine_rows .= sprintf(
+                            '<td style="font-size:%s;font-family:%s;font-weight:%s;font-style:%s;color:%s;text-align:%s;width:%s;padding:0 %s 0 8px;vertical-align:middle;">%s</td>',
+                            $fs, $ff, $fw, $fi, $fc, $ta, $w, $pr,
+                            esc_html($this->format_field($wine, $col['key']))
+                        );
+                    }
+                    $wine_rows .= '</tr>';
+                }
+
+                $html .= '<table style="page-break-inside:avoid;overflow:wrap;table-layout:fixed;">';
+
+                if ($wine_idx === 0) {
+                    if ($is_first_region) {
+                        $h2_prefix = $h2_start > 0 ? sprintf('<td colspan="%d"></td>', $h2_start) : '';
+                        $html .= sprintf(
+                            '<tr>%s<td colspan="%d" style="padding:%s 8px 3px;%s">%s</td></tr>',
+                            $h2_prefix, $ncols - $h2_start, $h2_top_pad, $h2_css, esc_html($country)
+                        );
+                    }
+                    if ($region !== '__none__') {
+                        $h3_prefix = $h3_start > 0 ? sprintf('<td colspan="%d"></td>', $h3_start) : '';
+                        $html .= sprintf(
+                            '<tr>%s<td colspan="%d" style="padding:8px 8px;%s">%s</td></tr>',
+                            $h3_prefix, $ncols - $h3_start, $h3_css, esc_html($region)
+                        );
+                    }
+                }
+
+                $html .= $wine_rows;
+                $html .= '</table>';
+            }
+
+            $is_first_region = false;
+        }
+
+        return $html;
+    }
+
+    /**
      * Renders the html
      * @param array $wines Wines
      * @param array $rows Table rows
@@ -507,7 +726,7 @@ $pct              = ($next_x - (float) $row[$i]['x']) / self::CANVAS_WIDTH * 100
                             if ($region !== '__none__') {
                                 $h3_prefix = $h3_start > 0 ? sprintf('<td colspan="%d"></td>', $h3_start) : '';
                                 $body .= sprintf(
-                                    '<tr>%s<td colspan="%d" style="padding:4px 8px;%s">%s</td></tr>',
+                                    '<tr>%s<td colspan="%d" style="padding:8px 8px;%s">%s</td></tr>',
                                     $h3_prefix, $ncols - $h3_start, $h3_css, esc_html($region)
                                 );
                             }
