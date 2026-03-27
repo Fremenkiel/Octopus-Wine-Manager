@@ -7,7 +7,7 @@ require_once __DIR__ . "/octopus-wine-managment.php";
  * Plugin URI: https://saarikivi.dk
  * Description: Sync octoput wines
  * Author: Wagner Development ÜO
- * Version: 1.0.2
+ * Version: 1.0.3
  * Text Domain: octopus-wine-managment
  * Requires at least: 6.0
  * Requires PHP: 7.4
