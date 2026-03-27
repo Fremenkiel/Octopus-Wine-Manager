@@ -9,9 +9,8 @@ use OctopusWineManagment\DTO\ProductDTO;
  *
  * Only products belonging to the configured product group IDs are imported.
  * Existing posts are updated (matched by _owm_product_id meta); new products
- * create new posts. No posts are deleted — removing stock in HotelBoss is
- * reflected through InventorySyncService setting the quantity to 0, which causes
- * PdfGenerator to omit the product from the PDF.
+ * create new posts. Products deleted from HotelBoss are removed from WordPress
+ * at the end of each full sync.* PdfGenerator to omit the product from the PDF.
  */
 class ProductSyncService {
     private $client;
@@ -49,8 +48,9 @@ class ProductSyncService {
      */
     public function sync_all_products($lang = 'en'): int | false {
         try {
-            $products   = $this->client->getProducts($lang);
-            $sync_count = 0;
+              $products       = $this->client->getProducts($lang);
+              $sync_count     = 0;
+              $synced_api_ids = [];
 
             foreach ($products as $productDTO) {
                 // Skip products that don't belong to a wine product group.
@@ -58,8 +58,12 @@ class ProductSyncService {
                     continue;
                 }
                 $this->sync_single_product($productDTO);
+                $synced_api_ids[] = $productDTO->id;
                 $sync_count++;
             }
+          
+            // Remove WordPress posts for products deleted from HotelBoss.
+            $this->remove_deleted_products($synced_api_ids);
 
             // Record the timestamp for the admin status chip.
             update_option('owm_last_sync', current_time('mysql'));
@@ -225,6 +229,28 @@ class ProductSyncService {
             update_post_meta($post_id, '_owm_all_attributes', $dto->attributes);
         }
     }
+
+    /**
+      * Deletes any owm_product posts whose API product ID is not present in the
+      * latest sync. Posts without an _owm_product_id (e.g. manually created) are
+      * left untouched.
+      *
+      * @param array $synced_api_ids  Product IDs returned by the current API call.
+      */
+      private function remove_deleted_products(array $synced_api_ids): void {
+        $query = new \WP_Query([
+          'post_type'      => $this->post_type,
+          'posts_per_page' => -1,
+          'fields'         => 'ids',
+        ]);
+
+        foreach ($query->posts as $post_id) {
+          $api_id = get_post_meta($post_id, '_owm_product_id', true);
+          if ($api_id !== '' && !in_array($api_id, $synced_api_ids)) {
+            $this->remove_wine($post_id);
+          }
+        }
+      }
 
     /**
      * Returns the WordPress post ID of an existing owm_product that was
